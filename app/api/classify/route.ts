@@ -54,8 +54,8 @@ JSON Schema:
         ],
       });
 
-      const textBlock = response.content.find((c) => c.type === "text");
-      if (textBlock) {
+      const textBlock = response.content.find((c: any) => c.type === "text");
+      if (textBlock && "text" in textBlock) {
         try {
           const parsed = JSON.parse(textBlock.text);
           sentiment = parsed.sentiment ?? "NEUTRAL";

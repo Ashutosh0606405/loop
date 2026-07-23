@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     const { items } = validated.data;
 
     // Mass create feedback items attached strictly to tenant.workspaceId
-    const feedbackRecords = items.map((item) => ({
+    const feedbackRecords = items.map((item: { content: string; channel?: string; customerName?: string }) => ({
       content: item.content,
       channel: item.channel || "CSV Import",
       customerName: item.customerName || "Anonymous Customer",

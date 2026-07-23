@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
 import { getTenantContext, unauthorizedResponse } from "@/lib/tenant-guard";
 import { askLoopQuerySchema } from "@/lib/zod-schemas";
+import { Feedback } from "@prisma/client";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY || "mock-key",
@@ -24,7 +25,7 @@ export async function POST(req: Request) {
     const { question } = validated.data;
 
     // Retrieve relevant feedback items belonging ONLY to the user's workspaceId
-    const feedbackItems = await db.feedback.findMany({
+    const feedbackItems: Feedback[] = await db.feedback.findMany({
       where: {
         workspaceId: tenant.workspaceId,
       },
@@ -41,11 +42,11 @@ export async function POST(req: Request) {
 
     // Format context for grounded RAG query
     const context = feedbackItems
-      .map((item, idx) => `[Citation ${idx + 1}] Customer: ${item.customerName || "Anonymous"} | Channel: ${item.channel} | Feedback: "${item.content}"`)
+      .map((item: Feedback, idx: number) => `[Citation ${idx + 1}] Customer: ${item.customerName || "Anonymous"} | Channel: ${item.channel} | Feedback: "${item.content}"`)
       .join("\n");
 
     let answer = "";
-    const citations = feedbackItems.map((item, idx) => ({
+    const citations = feedbackItems.map((item: Feedback, idx: number) => ({
       id: item.id,
       index: idx + 1,
       customer: item.customerName || "Anonymous Customer",
@@ -71,8 +72,8 @@ ${context}`,
         ],
       });
 
-      const textBlock = response.content.find((c) => c.type === "text");
-      if (textBlock) {
+      const textBlock = response.content.find((c: any) => c.type === "text");
+      if (textBlock && "text" in textBlock) {
         answer = textBlock.text;
       }
     } else {
