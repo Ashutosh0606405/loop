@@ -1,0 +1,122 @@
+// Prisma Schema for Project LOOP (AI Customer-Feedback Intelligence Platform)
+// Multi-tenant architecture with mandatory workspaceId scoping
+
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+enum Role {
+  ADMIN
+  ANALYST
+  VIEWER
+}
+
+enum FeedbackStatus {
+  NEW
+  REVIEWED
+  ACTIONED
+}
+
+enum Sentiment {
+  POSITIVE
+  NEGATIVE
+  NEUTRAL
+}
+
+model Workspace {
+  id        String     @id @default(cuid())
+  name      String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  users     User[]
+  feedbacks Feedback[]
+  themes    Theme[]
+  reports   Report[]
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         Role      @default(ANALYST)
+  workspaceId  String
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  reports      Report[]  @relation("UserGeneratedReports")
+
+  @@index([workspaceId])
+}
+
+model Feedback {
+  id             String          @id @default(cuid())
+  content        String
+  channel        String          // e.g. Email, Support Ticket, Survey, App Review, Custom
+  sentiment      Sentiment?
+  sentimentScore Float?          // Value from -1.0 (very negative) to 1.0 (very positive)
+  status         FeedbackStatus  @default(NEW)
+  customerName   String?
+  workspaceId    String
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  themes         FeedbackTheme[]
+  embeddings     Embedding[]
+
+  @@index([workspaceId])
+  @@index([workspaceId, status])
+  @@index([workspaceId, channel])
+  @@index([workspaceId, sentiment])
+}
+
+model Theme {
+  id          String          @id @default(cuid())
+  name        String
+  description String?
+  workspaceId String
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime        @default(now())
+  feedbacks   FeedbackTheme[]
+
+  @@index([workspaceId])
+}
+
+model FeedbackTheme {
+  feedbackId String
+  themeId    String
+  confidence Float    @default(1.0)
+  feedback   Feedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  theme      Theme    @relation(fields: [themeId], references: [id], onDelete: Cascade)
+
+  @@id([feedbackId, themeId])
+}
+
+model Embedding {
+  id         String   @id @default(cuid())
+  feedbackId String
+  feedback   Feedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  vector     String?  // Serialized vector embeddings for semantic search & RAG Q&A
+  createdAt  DateTime @default(now())
+
+  @@index([feedbackId])
+}
+
+model Report {
+  id            String    @id @default(cuid())
+  title         String
+  period        String    // Weekly, Monthly, Quarterly, Custom
+  contentJson   Json
+  workspaceId   String
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  generatedById String
+  generatedBy   User      @relation("UserGeneratedReports", fields: [generatedById], references: [id])
+  createdAt     DateTime  @default(now())
+
+  @@index([workspaceId])
+}
