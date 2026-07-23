@@ -1,5 +1,4 @@
-// Prisma Schema for Project LOOP (AI Customer-Feedback Intelligence Platform)
-// Multi-tenant architecture with mandatory workspaceId scoping
+
 
 datasource db {
   provider = "postgresql"
