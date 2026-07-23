@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
 import { getTenantContext, unauthorizedResponse } from "@/lib/tenant-guard";
 import { askLoopQuerySchema } from "@/lib/zod-schemas";
-import { Feedback } from "@prisma/client";
+
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY || "mock-key",
@@ -42,18 +42,18 @@ export async function POST(req: Request) {
 
     // Format context for grounded RAG query
     const context = feedbackItems
-      .map((item: Feedback, idx: number) => `[Citation ${idx + 1}] Customer: ${item.customerName || "Anonymous"} | Channel: ${item.channel} | Feedback: "${item.content}"`)
-      .join("\n");
+      .map((item: any, idx: number) => `[Citation ${idx + 1}] Customer: ${item.customerName || "Anonymous"} | Channel: ${item.channel} | Feedback: "${item.content}"`)
+  .join("\n");
 
     let answer = "";
-    const citations = feedbackItems.map((item: Feedback, idx: number) => ({
-      id: item.id,
-      index: idx + 1,
-      customer: item.customerName || "Anonymous Customer",
-      channel: item.channel,
-      content: item.content,
-      sentiment: item.sentiment || "NEUTRAL",
-    }));
+  const citations = feedbackItems.map((item: any, idx: number) => ({
+    id: item.id,
+    index: idx + 1,
+    customer: item.customerName || "Anonymous Customer",
+    channel: item.channel,
+    content: item.content,
+    sentiment: item.sentiment || "NEUTRAL",
+  }));
 
     if (process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== "mock-key") {
       const response = await anthropic.messages.create({
