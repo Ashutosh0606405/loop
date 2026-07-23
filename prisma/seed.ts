@@ -1,7 +1,13 @@
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 import bcrypt from "bcryptjs";
+import "dotenv/config";
 
-const prisma = new PrismaClient();
+const connectionString = process.env.DATABASE_URL || process.env.DIRECT_URL;
+const pool = new Pool({ connectionString });
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
 
 async function main() {
   console.log("🌱 Seeding Project LOOP database...");
@@ -142,7 +148,6 @@ async function main() {
   }
 
   console.log(`✅ Seeded ${sampleFeedbacks.length} Feedback Records`);
-
   console.log("🎉 Database seeding completed successfully!");
 }
 
@@ -152,5 +157,5 @@ main()
     process.exit(1);
   })
   .finally(async () => {
-    await prisma.$disconnect();
+    await pool.end();
   });
