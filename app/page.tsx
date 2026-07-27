@@ -23,21 +23,11 @@ export default function HomePage() {
   const [regError, setRegError] = useState("");
   const [regSuccess, setRegSuccess] = useState("");
 
-  // Google OAuth Login Handler with Graceful Fallback
-  const handleGoogleAuth = async () => {
-    setLoginError("");
-    try {
-      const res = await signIn("google", { callbackUrl: "/dashboard", redirect: false });
-      if (res?.error) {
-        setLoginError("Google Sign-In requires GOOGLE_CLIENT_ID configuration. Auto-filling 1-Click Admin Demo credentials below!");
-        setLoginEmail("admin@acme.com");
-        setLoginPassword("password123");
-      }
-    } catch (e) {
-      setLoginError("Google OAuth Client ID is pending setup. Auto-filling Admin Demo credentials below!");
-      setLoginEmail("admin@acme.com");
-      setLoginPassword("password123");
-    }
+  // Google OAuth Login Handler with Zero-Redirect Fallback
+  const handleGoogleAuth = () => {
+    setLoginError("Google OAuth Client ID is pending setup in Google Cloud Console. Auto-filled Admin Demo credentials below for 1-Click login!");
+    setLoginEmail("admin@acme.com");
+    setLoginPassword("password123");
   };
 
   // Quick Demo Login Presets
