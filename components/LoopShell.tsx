@@ -65,10 +65,37 @@ function NavigationIcon({
         className={className}
         aria-hidden="true"
       >
-        <rect x="3" y="3" width="7" height="7" rx="2" />
-        <rect x="14" y="3" width="7" height="7" rx="2" />
-        <rect x="3" y="14" width="7" height="7" rx="2" />
-        <rect x="14" y="14" width="7" height="7" rx="2" />
+        <rect
+          x="3"
+          y="3"
+          width="7"
+          height="7"
+          rx="2"
+        />
+
+        <rect
+          x="14"
+          y="3"
+          width="7"
+          height="7"
+          rx="2"
+        />
+
+        <rect
+          x="3"
+          y="14"
+          width="7"
+          height="7"
+          rx="2"
+        />
+
+        <rect
+          x="14"
+          y="14"
+          width="7"
+          height="7"
+          rx="2"
+        />
       </svg>
     );
   }
@@ -227,39 +254,28 @@ function SidebarContent({
         </div>
       </nav>
 
-      {/* Bottom Card */}
+      {/* AI Status */}
       <div className="p-4">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/20 text-violet-300">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              className="h-5 w-5"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="m12 3 1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7L12 3Z"
-              />
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-bold text-white">
+              AI Analysis
+            </p>
 
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="m19 15 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15Z"
-              />
-            </svg>
+            <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
           </div>
 
-          <h2 className="mt-3 text-sm font-bold text-white">
-            AI-powered insights
-          </h2>
+          <p className="mt-2 text-xs leading-5 text-slate-400">
+            LOOP AI is actively analysing customer
+            feedback.
+          </p>
 
-          <p className="mt-1 text-xs leading-5 text-slate-400">
-            Understand feedback, sentiment and customer
-            trends.
+          <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-800">
+            <div className="h-full w-3/4 rounded-full bg-gradient-to-r from-blue-500 to-violet-500" />
+          </div>
+
+          <p className="mt-2 text-right text-[10px] font-semibold text-slate-500">
+            75% processed
           </p>
         </div>
 
@@ -288,7 +304,7 @@ export default function LoopShell({
     "Monitor customer feedback and insights.";
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-100 text-slate-900">
       {/* Desktop Sidebar */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col overflow-hidden bg-slate-950 lg:flex">
         <div className="absolute -left-20 top-28 h-56 w-56 rounded-full bg-blue-600/15 blur-3xl" />
@@ -305,7 +321,9 @@ export default function LoopShell({
         <button
           type="button"
           aria-label="Close navigation menu"
-          onClick={() => setIsMobileSidebarOpen(false)}
+          onClick={() =>
+            setIsMobileSidebarOpen(false)
+          }
           className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-sm lg:hidden"
         />
       )}
@@ -325,7 +343,9 @@ export default function LoopShell({
         <div className="relative z-10 flex min-h-screen flex-col">
           <button
             type="button"
-            onClick={() => setIsMobileSidebarOpen(false)}
+            onClick={() =>
+              setIsMobileSidebarOpen(false)
+            }
             aria-label="Close sidebar"
             className="absolute right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white transition hover:bg-white/20"
           >
@@ -354,16 +374,19 @@ export default function LoopShell({
         </div>
       </aside>
 
-      {/* Main Application */}
+      {/* Main Area */}
       <div className="min-h-screen lg:pl-72">
         {/* Header */}
-        <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
-          <div className="flex min-h-[84px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-xl">
+          <div className="flex min-h-[84px] items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
             {/* Header Left */}
             <div className="flex min-w-0 items-center gap-4">
+              {/* Mobile Menu */}
               <button
                 type="button"
-                onClick={() => setIsMobileSidebarOpen(true)}
+                onClick={() =>
+                  setIsMobileSidebarOpen(true)
+                }
                 aria-label="Open navigation menu"
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 lg:hidden"
               >
@@ -383,8 +406,13 @@ export default function LoopShell({
                 </svg>
               </button>
 
+              {/* Page Heading */}
               <div className="min-w-0">
-                <h1 className="truncate text-xl font-bold text-slate-950 sm:text-2xl">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-600">
+                  Project LOOP
+                </p>
+
+                <h1 className="mt-1 truncate text-xl font-bold text-slate-950 sm:text-2xl">
                   {title}
                 </h1>
 
@@ -396,6 +424,36 @@ export default function LoopShell({
 
             {/* Header Right */}
             <div className="flex shrink-0 items-center gap-3">
+              {/* Search */}
+              <div className="hidden items-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 xl:flex">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  className="mr-2 h-4 w-4 text-slate-400"
+                  aria-hidden="true"
+                >
+                  <circle
+                    cx="11"
+                    cy="11"
+                    r="7"
+                  />
+
+                  <path
+                    strokeLinecap="round"
+                    d="m16 16 4 4"
+                  />
+                </svg>
+
+                <input
+                  type="text"
+                  placeholder="Search insights..."
+                  className="w-36 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                />
+              </div>
+
+              {/* Notification */}
               <button
                 type="button"
                 aria-label="Notifications"
@@ -425,13 +483,14 @@ export default function LoopShell({
                 <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" />
               </button>
 
+              {/* Profile Dropdown */}
               <ProfileMenu />
             </div>
           </div>
         </header>
 
         {/* Page Content */}
-        <main className="px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <main className="p-4 sm:p-6 lg:p-8">
           {children}
         </main>
       </div>

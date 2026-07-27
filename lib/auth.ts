@@ -1,5 +1,6 @@
 import { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { loginSchema } from "@/lib/zod-schemas";
@@ -9,9 +10,13 @@ export const authOptions: AuthOptions = {
     strategy: "jwt",
   },
   pages: {
-    signIn: "/login",
+    signIn: "/",
   },
   providers: [
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID || "mock-google-client-id",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "mock-google-client-secret",
+    }),
     CredentialsProvider({
       name: "Credentials",
       credentials: {
@@ -49,11 +54,42 @@ export const authOptions: AuthOptions = {
     }),
   ],
   callbacks: {
+    async signIn({ user, account, profile }) {
+      if (account?.provider === "google" && user.email) {
+        let existingUser = await db.user.findUnique({
+          where: { email: user.email },
+        });
+
+        if (!existingUser) {
+          // Provision workspace and user for Google OAuth login
+          const workspace = await db.workspace.create({
+            data: {
+              name: `${user.name || "User"}'s Workspace`,
+            },
+          });
+
+          existingUser = await db.user.create({
+            data: {
+              name: user.name || "Google User",
+              email: user.email,
+              passwordHash: "OAUTH_GOOGLE_USER",
+              role: "ADMIN",
+              workspaceId: workspace.id,
+            },
+          });
+        }
+
+        user.id = existingUser.id;
+        user.role = existingUser.role;
+        user.workspaceId = existingUser.workspaceId;
+      }
+      return true;
+    },
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = user.role;
-        token.workspaceId = user.workspaceId;
+        token.role = (user as any).role;
+        token.workspaceId = (user as any).workspaceId;
       }
       return token;
     },
