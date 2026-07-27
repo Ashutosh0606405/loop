@@ -23,48 +23,61 @@ export const authOptions: AuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
+        try {
+          if (!credentials?.email || !credentials?.password) {
+            return null;
+          }
+
+          const email = credentials.email.trim().toLowerCase();
+          const password = credentials.password.trim();
+
+          // 1. Indexed lookup by unique email
+          let user = await db.user.findUnique({
+            where: { email },
+          });
+
+          // Fallback if not found initially
+          if (!user) {
+            user = await db.user.findFirst({
+              where: {
+                email: {
+                  equals: email,
+                  mode: "insensitive",
+                },
+              },
+            });
+          }
+
+          if (!user || !user.passwordHash) {
+            return null;
+          }
+
+          // 2. Validate bcrypt password hash
+          const passwordMatch = await bcrypt.compare(password, user.passwordHash);
+          if (!passwordMatch) {
+            return null;
+          }
+
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            workspaceId: user.workspaceId,
+          };
+        } catch (err) {
+          console.error("NextAuth authorize exception:", err);
           return null;
         }
-
-        const email = credentials.email.trim().toLowerCase();
-        const password = credentials.password.trim();
-
-        // 1. Check database for existing user
-        const user = await db.user.findFirst({
-          where: {
-            email: {
-              equals: email,
-              mode: "insensitive",
-            },
-          },
-        });
-
-        if (!user || !user.passwordHash) {
-          return null;
-        }
-
-        // 2. Validate password hash
-        const passwordMatch = await bcrypt.compare(password, user.passwordHash);
-        if (!passwordMatch) {
-          return null;
-        }
-
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          workspaceId: user.workspaceId,
-        };
       },
     }),
   ],
   callbacks: {
     async signIn({ user, account }) {
       if (account?.provider === "google" && user.email) {
-        let existingUser = await db.user.findFirst({
-          where: { email: { equals: user.email.trim().toLowerCase(), mode: "insensitive" } },
+        const cleanEmail = user.email.trim().toLowerCase();
+        let existingUser = await db.user.findUnique({
+          where: { email: cleanEmail },
         });
 
         if (!existingUser) {
@@ -78,7 +91,7 @@ export const authOptions: AuthOptions = {
           existingUser = await db.user.create({
             data: {
               name: user.name || "Google User",
-              email: user.email.trim().toLowerCase(),
+              email: cleanEmail,
               passwordHash: "OAUTH_GOOGLE_USER",
               role: "ADMIN",
               workspaceId: workspace.id,
