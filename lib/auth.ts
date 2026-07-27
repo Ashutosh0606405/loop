@@ -30,15 +30,22 @@ export const authOptions: AuthOptions = {
         }
 
         const { email, password } = validated.data;
-        const user = await db.user.findUnique({
-          where: { email },
+        const normalizedEmail = email.trim().toLowerCase();
+
+        const user = await db.user.findFirst({
+          where: {
+            email: {
+              equals: normalizedEmail,
+              mode: "insensitive",
+            },
+          },
         });
 
         if (!user) {
           throw new Error("No account found with this email");
         }
 
-        const passwordMatch = await bcrypt.compare(password, user.passwordHash);
+        const passwordMatch = await bcrypt.compare(password.trim(), user.passwordHash);
         if (!passwordMatch) {
           throw new Error("Incorrect password");
         }
@@ -54,10 +61,10 @@ export const authOptions: AuthOptions = {
     }),
   ],
   callbacks: {
-    async signIn({ user, account, profile }) {
+    async signIn({ user, account }) {
       if (account?.provider === "google" && user.email) {
-        let existingUser = await db.user.findUnique({
-          where: { email: user.email },
+        let existingUser = await db.user.findFirst({
+          where: { email: { equals: user.email.trim().toLowerCase(), mode: "insensitive" } },
         });
 
         if (!existingUser) {
@@ -71,7 +78,7 @@ export const authOptions: AuthOptions = {
           existingUser = await db.user.create({
             data: {
               name: user.name || "Google User",
-              email: user.email,
+              email: user.email.trim().toLowerCase(),
               passwordHash: "OAUTH_GOOGLE_USER",
               role: "ADMIN",
               workspaceId: workspace.id,

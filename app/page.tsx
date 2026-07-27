@@ -32,20 +32,22 @@ export default function HomePage() {
 
   // Quick Demo Login Presets
   const handleDemoLogin = async (email: string) => {
-    setLoginEmail(email);
-    setLoginPassword("password123");
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = "password123";
+    setLoginEmail(cleanEmail);
+    setLoginPassword(cleanPassword);
     setLoginLoading(true);
     setLoginError("");
 
     const res = await signIn("credentials", {
-      email,
-      password: "password123",
+      email: cleanEmail,
+      password: cleanPassword,
       redirect: false,
     });
 
     setLoginLoading(false);
     if (res?.error) {
-      setLoginError(res.error);
+      setLoginError("Failed to sign in. Please verify database connection.");
     } else {
       router.push("/dashboard");
       router.refresh();
@@ -57,9 +59,12 @@ export default function HomePage() {
     setLoginLoading(true);
     setLoginError("");
 
+    const cleanEmail = loginEmail.trim().toLowerCase();
+    const cleanPassword = loginPassword.trim();
+
     const res = await signIn("credentials", {
-      email: loginEmail,
-      password: loginPassword,
+      email: cleanEmail,
+      password: cleanPassword,
       redirect: false,
     });
 
@@ -83,10 +88,10 @@ export default function HomePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: regName,
-          email: regEmail,
-          password: regPassword,
-          workspaceName: regWorkspace,
+          name: regName.trim(),
+          email: regEmail.trim().toLowerCase(),
+          password: regPassword.trim(),
+          workspaceName: regWorkspace.trim(),
         }),
       });
 
@@ -102,8 +107,8 @@ export default function HomePage() {
 
       // Automatically sign in after registration
       const loginRes = await signIn("credentials", {
-        email: regEmail,
-        password: regPassword,
+        email: regEmail.trim().toLowerCase(),
+        password: regPassword.trim(),
         redirect: false,
       });
 
@@ -113,7 +118,7 @@ export default function HomePage() {
         router.refresh();
       } else {
         setActiveTab("login");
-        setLoginEmail(regEmail);
+        setLoginEmail(regEmail.trim().toLowerCase());
       }
     } catch (err) {
       setRegLoading(false);
@@ -338,7 +343,7 @@ export default function HomePage() {
                   />
                   <path
                     fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                   />
                 </svg>
                 Sign Up with Google
