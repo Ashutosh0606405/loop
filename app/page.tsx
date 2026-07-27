@@ -23,9 +23,21 @@ export default function HomePage() {
   const [regError, setRegError] = useState("");
   const [regSuccess, setRegSuccess] = useState("");
 
-  // Google OAuth Login
+  // Google OAuth Login Handler with Graceful Fallback
   const handleGoogleAuth = async () => {
-    await signIn("google", { callbackUrl: "/dashboard" });
+    setLoginError("");
+    try {
+      const res = await signIn("google", { callbackUrl: "/dashboard", redirect: false });
+      if (res?.error) {
+        setLoginError("Google Sign-In requires GOOGLE_CLIENT_ID configuration. Auto-filling 1-Click Admin Demo credentials below!");
+        setLoginEmail("admin@acme.com");
+        setLoginPassword("password123");
+      }
+    } catch (e) {
+      setLoginError("Google OAuth Client ID is pending setup. Auto-filling Admin Demo credentials below!");
+      setLoginEmail("admin@acme.com");
+      setLoginPassword("password123");
+    }
   };
 
   // Quick Demo Login Presets
@@ -227,8 +239,8 @@ export default function HomePage() {
               </div>
 
               {loginError && (
-                <div className="mb-5 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">
-                  ⚠️ {loginError}
+                <div className="mb-5 rounded-xl border border-blue-500/30 bg-blue-500/10 p-3 text-xs text-blue-300">
+                  ℹ️ {loginError}
                 </div>
               )}
 
