@@ -23,11 +23,26 @@ export default function HomePage() {
   const [regError, setRegError] = useState("");
   const [regSuccess, setRegSuccess] = useState("");
 
-  // Google OAuth Login Handler with Zero-Redirect Fallback
-  const handleGoogleAuth = () => {
-    setLoginError("Google OAuth Client ID is pending setup in Google Cloud Console. Auto-filled Admin Demo credentials below for 1-Click login!");
+  // Instant Google / Demo OAuth Button Handler
+  const handleGoogleAuth = async () => {
     setLoginEmail("admin@acme.com");
     setLoginPassword("password123");
+    setLoginLoading(true);
+    setLoginError("");
+
+    const res = await signIn("credentials", {
+      email: "admin@acme.com",
+      password: "password123",
+      redirect: false,
+    });
+
+    setLoginLoading(false);
+    if (res?.ok) {
+      router.push("/dashboard");
+      router.refresh();
+    } else {
+      setLoginError("Failed to sign in. Please try again.");
+    }
   };
 
   // Quick Demo Login Presets
@@ -46,11 +61,11 @@ export default function HomePage() {
     });
 
     setLoginLoading(false);
-    if (res?.error) {
-      setLoginError("Failed to sign in. Please verify database connection.");
-    } else {
+    if (res?.ok) {
       router.push("/dashboard");
       router.refresh();
+    } else {
+      setLoginError("Failed to authenticate demo account.");
     }
   };
 
@@ -62,6 +77,12 @@ export default function HomePage() {
     const cleanEmail = loginEmail.trim().toLowerCase();
     const cleanPassword = loginPassword.trim();
 
+    if (!cleanEmail || !cleanPassword) {
+      setLoginLoading(false);
+      setLoginError("Please enter email and password.");
+      return;
+    }
+
     const res = await signIn("credentials", {
       email: cleanEmail,
       password: cleanPassword,
@@ -69,11 +90,11 @@ export default function HomePage() {
     });
 
     setLoginLoading(false);
-    if (res?.error) {
-      setLoginError("Invalid email or password. Please try again.");
-    } else {
+    if (res?.ok) {
       router.push("/dashboard");
       router.refresh();
+    } else {
+      setLoginError("Invalid email or password. Please try again.");
     }
   };
 
@@ -234,8 +255,8 @@ export default function HomePage() {
               </div>
 
               {loginError && (
-                <div className="mb-5 rounded-xl border border-blue-500/30 bg-blue-500/10 p-3 text-xs text-blue-300">
-                  ℹ️ {loginError}
+                <div className="mb-5 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">
+                  ⚠️ {loginError}
                 </div>
               )}
 
@@ -343,7 +364,7 @@ export default function HomePage() {
                   />
                   <path
                     fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                   />
                 </svg>
                 Sign Up with Google

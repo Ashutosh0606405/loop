@@ -3,7 +3,6 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
-import { loginSchema } from "@/lib/zod-schemas";
 
 export const authOptions: AuthOptions = {
   session: {
@@ -24,30 +23,31 @@ export const authOptions: AuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        const validated = loginSchema.safeParse(credentials);
-        if (!validated.success) {
-          throw new Error("Invalid credentials format");
+        if (!credentials?.email || !credentials?.password) {
+          return null;
         }
 
-        const { email, password } = validated.data;
-        const normalizedEmail = email.trim().toLowerCase();
+        const email = credentials.email.trim().toLowerCase();
+        const password = credentials.password.trim();
 
+        // 1. Check database for existing user
         const user = await db.user.findFirst({
           where: {
             email: {
-              equals: normalizedEmail,
+              equals: email,
               mode: "insensitive",
             },
           },
         });
 
-        if (!user) {
-          throw new Error("No account found with this email");
+        if (!user || !user.passwordHash) {
+          return null;
         }
 
-        const passwordMatch = await bcrypt.compare(password.trim(), user.passwordHash);
+        // 2. Validate password hash
+        const passwordMatch = await bcrypt.compare(password, user.passwordHash);
         if (!passwordMatch) {
-          throw new Error("Incorrect password");
+          return null;
         }
 
         return {
