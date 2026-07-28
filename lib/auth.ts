@@ -16,6 +16,11 @@ export const authOptions: AuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID || "mock-google-client-id",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "mock-google-client-secret",
+      authorization: {
+        params: {
+          prompt: "select_account",
+        },
+      },
     }),
     CredentialsProvider({
       name: "Credentials",

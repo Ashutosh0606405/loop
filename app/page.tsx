@@ -23,22 +23,14 @@ export default function HomePage() {
   const [regError, setRegError] = useState("");
   const [regSuccess, setRegSuccess] = useState("");
 
-  // Instant Google / Demo OAuth Button Handler
+  // Official Google OAuth Account Chooser Trigger
   const handleGoogleAuth = async () => {
-    setLoginEmail("admin@acme.com");
-    setLoginPassword("password123");
     setLoginLoading(true);
     setLoginError("");
 
-    await signIn("credentials", {
-      email: "admin@acme.com",
-      password: "password123",
-      redirect: false,
+    await signIn("google", {
+      callbackUrl: "/dashboard",
     });
-
-    setLoginLoading(false);
-    router.push("/dashboard");
-    router.refresh();
   };
 
   // Quick Demo Login Presets (Direct Client Router Push)
