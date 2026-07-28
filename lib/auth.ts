@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 
 export const authOptions: AuthOptions = {
+  secret: process.env.NEXTAUTH_SECRET || "loop-super-secret-key-2026",
   session: {
     strategy: "jwt",
   },
@@ -24,9 +25,7 @@ export const authOptions: AuthOptions = {
       },
       async authorize(credentials) {
         try {
-          console.log("--> authorize called with credentials:", credentials);
           if (!credentials?.email || !credentials?.password) {
-            console.log("--> credentials missing email or password");
             return null;
           }
 
@@ -38,8 +37,8 @@ export const authOptions: AuthOptions = {
             where: { email },
           });
 
+          // Fallback if not found initially
           if (!user) {
-            console.log("--> findUnique returned null for email:", email);
             user = await db.user.findFirst({
               where: {
                 email: {
@@ -50,29 +49,25 @@ export const authOptions: AuthOptions = {
             });
           }
 
-          console.log("--> user lookup result:", !!user);
           if (!user || !user.passwordHash) {
             return null;
           }
 
           // 2. Validate bcrypt password hash
           const passwordMatch = await bcrypt.compare(password, user.passwordHash);
-          console.log("--> password match result:", passwordMatch);
           if (!passwordMatch) {
             return null;
           }
 
-          const resultUser = {
+          return {
             id: user.id,
             name: user.name,
             email: user.email,
             role: user.role,
             workspaceId: user.workspaceId,
           };
-          console.log("--> Returning success user:", resultUser);
-          return resultUser;
         } catch (err) {
-          console.error("--> NextAuth authorize EXCEPTION:", err);
+          console.error("NextAuth authorize exception:", err);
           return null;
         }
       },
@@ -127,5 +122,4 @@ export const authOptions: AuthOptions = {
       return session;
     },
   },
-  secret: process.env.NEXTAUTH_SECRET || "loop-super-secret-key-change-in-prod",
 };
