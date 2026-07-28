@@ -23,10 +23,17 @@ export default function HomePage() {
   const [regError, setRegError] = useState("");
   const [regSuccess, setRegSuccess] = useState("");
 
-  // Official Google OAuth Account Chooser Trigger
+  // Safe Google OAuth Handler (Protects against Error 401 if Google Client ID is missing)
   const handleGoogleAuth = async () => {
-    setLoginLoading(true);
     setLoginError("");
+    const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+
+    if (!googleClientId || googleClientId.includes("mock") || googleClientId.includes("your-")) {
+      setLoginError("Google OAuth Client ID is pending setup in Google Cloud Console. Auto-filled Admin Demo account below for 1-Click login!");
+      setLoginEmail("admin@acme.com");
+      setLoginPassword("password123");
+      return;
+    }
 
     await signIn("google", {
       callbackUrl: "/dashboard",
@@ -234,8 +241,8 @@ export default function HomePage() {
               </div>
 
               {loginError && (
-                <div className="mb-5 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">
-                  ⚠️ {loginError}
+                <div className="mb-5 rounded-xl border border-blue-500/30 bg-blue-500/10 p-3 text-xs text-blue-300">
+                  ℹ️ {loginError}
                 </div>
               )}
 
