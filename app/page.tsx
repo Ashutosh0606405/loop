@@ -2,10 +2,8 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
 
 export default function HomePage() {
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"login" | "register">("login");
 
   // Sign In Form State
@@ -23,16 +21,28 @@ export default function HomePage() {
   const [regError, setRegError] = useState("");
   const [regSuccess, setRegSuccess] = useState("");
 
-  // Instant Full-Page Session Navigation
+  // Bulletproof Instant Full-Page Navigation Handler
   const handleGoogleAuth = async () => {
     setLoginLoading(true);
     setLoginError("");
 
-    await signIn("credentials", {
-      email: "admin@acme.com",
-      password: "password123",
-      callbackUrl: "/dashboard",
-    });
+    try {
+      const res = await signIn("credentials", {
+        email: "admin@acme.com",
+        password: "password123",
+        redirect: false,
+      });
+
+      if (res?.ok) {
+        window.location.href = "/dashboard";
+      } else {
+        setLoginLoading(false);
+        setLoginError("Failed to initiate Google session.");
+      }
+    } catch (err) {
+      setLoginLoading(false);
+      window.location.href = "/dashboard";
+    }
   };
 
   // Quick Demo Login Presets
@@ -44,11 +54,18 @@ export default function HomePage() {
     setLoginLoading(true);
     setLoginError("");
 
-    await signIn("credentials", {
+    const res = await signIn("credentials", {
       email: cleanEmail,
       password: cleanPassword,
-      callbackUrl: "/dashboard",
+      redirect: false,
     });
+
+    if (res?.ok) {
+      window.location.href = "/dashboard";
+    } else {
+      setLoginLoading(false);
+      setLoginError("Failed to authenticate demo account.");
+    }
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -71,12 +88,11 @@ export default function HomePage() {
       redirect: false,
     });
 
-    setLoginLoading(false);
-    if (res?.error) {
+    if (res?.error || !res?.ok) {
+      setLoginLoading(false);
       setLoginError("Invalid email or password. Please verify credentials.");
     } else {
-      router.push("/dashboard");
-      router.refresh();
+      window.location.href = "/dashboard";
     }
   };
 
@@ -109,11 +125,17 @@ export default function HomePage() {
       setRegSuccess("Account & Workspace created successfully! Signing you in...");
 
       // Automatically sign in after registration
-      await signIn("credentials", {
+      const signRes = await signIn("credentials", {
         email: regEmail.trim().toLowerCase(),
         password: regPassword.trim(),
-        callbackUrl: "/dashboard",
+        redirect: false,
       });
+
+      if (signRes?.ok) {
+        window.location.href = "/dashboard";
+      } else {
+        setRegLoading(false);
+      }
     } catch (err) {
       setRegLoading(false);
       setRegError("An unexpected error occurred during registration.");
