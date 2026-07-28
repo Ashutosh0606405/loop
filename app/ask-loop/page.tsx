@@ -1,80 +1,199 @@
 "use client";
 
-import type { FormEvent } from "react";
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
+  type FormEvent,
+  type KeyboardEvent,
+  type ReactNode,
 } from "react";
 
 import LoopShell from "../../components/LoopShell";
 
+type Sentiment =
+  | "Positive"
+  | "Neutral"
+  | "Negative";
+
+type AnswerMode = "Concise" | "Detailed";
+
 type Evidence = {
   quote: string;
   source: string;
-  sentiment: "Positive" | "Neutral" | "Negative";
+  sentiment: Sentiment;
+  relevance: number;
 };
 
 type ChatMessage = {
-  id: number;
+  id: string;
   role: "user" | "assistant";
   content: string;
+  createdAt: string;
   evidence?: Evidence[];
+  themes?: string[];
+  confidence?: number;
 };
 
+type AnswerResult = {
+  content: string;
+  evidence: Evidence[];
+  themes: string[];
+  confidence: number;
+};
+
+type ToastMessage = {
+  type: "success" | "error" | "info";
+  message: string;
+};
+
+const maximumQuestionLength = 500;
+
 const suggestedQuestions = [
-  "What are customers saying about payments?",
-  "Which issues need immediate attention?",
-  "Summarize the onboarding feedback",
-  "What features do customers like the most?",
+  {
+    title:
+      "What are customers saying about payments?",
+    category: "Payments",
+    description:
+      "Understand payment delays and transaction concerns.",
+  },
+  {
+    title:
+      "Which issues need immediate attention?",
+    category: "Urgent",
+    description:
+      "Identify high-priority customer problems.",
+  },
+  {
+    title:
+      "Summarize the onboarding feedback",
+    category: "Onboarding",
+    description:
+      "Review the first-time user experience.",
+  },
+  {
+    title:
+      "What features do customers like the most?",
+    category: "Positive",
+    description:
+      "Discover the strongest positive themes.",
+  },
 ];
 
-function generateDemoAnswer(question: string) {
-  const normalizedQuestion = question.toLowerCase();
+const initialAssistantMessage: ChatMessage = {
+  id: "welcome-message",
+  role: "assistant",
+  content:
+    "Hello! I am LOOP AI. Ask me about customer sentiment, recurring issues, product opportunities, feedback themes or urgent customer concerns.",
+  createdAt: new Date().toISOString(),
+  themes: [
+    "Sentiment",
+    "Themes",
+    "Customer Experience",
+  ],
+};
+
+function createMessageId() {
+  return `${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+}
+
+function generateDemoAnswer(
+  question: string,
+  answerMode: AnswerMode,
+): AnswerResult {
+  const normalizedQuestion =
+    question.toLowerCase();
+
+  const concise =
+    answerMode === "Concise";
 
   if (
     normalizedQuestion.includes("payment") ||
-    normalizedQuestion.includes("transaction")
+    normalizedQuestion.includes(
+      "transaction",
+    )
   ) {
     return {
-      content:
-        "Payment-related feedback is increasing. Most customers report that the transaction succeeds, but the confirmation message takes too long. Customers want a clearer real-time payment status and faster confirmation.",
+      content: concise
+        ? "Payment feedback mainly highlights delayed confirmation messages. Customers want faster confirmation and a clearer real-time payment status."
+        : "Payment-related feedback is increasing. Most customers report that transactions complete successfully, but confirmation messages arrive late. This creates uncertainty about whether the payment was completed. Customers want a clearer real-time payment status, faster confirmation and better error messaging.",
+      confidence: 92,
+      themes: [
+        "Payment Delay",
+        "Transaction Status",
+        "User Trust",
+      ],
       evidence: [
         {
           quote:
             "Payment succeeded, but the confirmation message arrived late.",
           source: "Support Ticket",
-          sentiment: "Neutral" as const,
+          sentiment: "Neutral",
+          relevance: 95,
         },
         {
           quote:
             "I was not sure whether my payment was completed.",
           source: "App Review",
-          sentiment: "Negative" as const,
+          sentiment: "Negative",
+          relevance: 91,
+        },
+        {
+          quote:
+            "The transaction worked, but I had to wait for the status update.",
+          source: "Web Form",
+          sentiment: "Neutral",
+          relevance: 86,
         },
       ],
     };
   }
 
   if (
-    normalizedQuestion.includes("onboarding") ||
-    normalizedQuestion.includes("new user")
+    normalizedQuestion.includes(
+      "onboarding",
+    ) ||
+    normalizedQuestion.includes(
+      "new user",
+    ) ||
+    normalizedQuestion.includes(
+      "first time",
+    )
   ) {
     return {
-      content:
-        "Customers find the product useful, but first-time users feel that the onboarding process contains too many steps. A shorter walkthrough and clearer first-action guidance could improve the experience.",
+      content: concise
+        ? "New users find onboarding useful but too long. A shorter walkthrough and clearer first action would improve the experience."
+        : "Customers find the product useful, but first-time users feel that the onboarding process contains too many steps and options. A shorter walkthrough, clearer first-action guidance and progressive feature introduction could improve activation and reduce confusion.",
+      confidence: 89,
+      themes: [
+        "Onboarding",
+        "First-time Users",
+        "Product Guidance",
+      ],
       evidence: [
         {
           quote:
             "I would like a simpler onboarding guide for first-time users.",
           source: "NPS Survey",
-          sentiment: "Neutral" as const,
+          sentiment: "Neutral",
+          relevance: 94,
         },
         {
           quote:
             "The first screen contains too many options.",
           source: "User Interview",
-          sentiment: "Negative" as const,
+          sentiment: "Negative",
+          relevance: 90,
+        },
+        {
+          quote:
+            "A short product tour would make the setup easier.",
+          source: "Web App",
+          sentiment: "Neutral",
+          relevance: 84,
         },
       ],
     };
@@ -82,24 +201,48 @@ function generateDemoAnswer(question: string) {
 
   if (
     normalizedQuestion.includes("like") ||
-    normalizedQuestion.includes("positive") ||
-    normalizedQuestion.includes("best")
+    normalizedQuestion.includes(
+      "positive",
+    ) ||
+    normalizedQuestion.includes("best") ||
+    normalizedQuestion.includes(
+      "favourite",
+    ) ||
+    normalizedQuestion.includes(
+      "favorite",
+    )
   ) {
     return {
-      content:
-        "Customers respond positively to the clean dashboard, responsive user interface and quick customer-support resolution. User experience is currently the strongest positive theme.",
+      content: concise
+        ? "Customers most appreciate the clean dashboard, responsive interface and fast customer-support resolution."
+        : "Customers respond positively to the clean dashboard, responsive user interface and quick customer-support resolution. Ease of use and visual clarity are currently the strongest positive themes, followed by the speed of support assistance.",
+      confidence: 94,
+      themes: [
+        "Dashboard",
+        "User Experience",
+        "Customer Support",
+      ],
       evidence: [
         {
           quote:
             "The latest dashboard update is clean and very easy to use.",
           source: "App Review",
-          sentiment: "Positive" as const,
+          sentiment: "Positive",
+          relevance: 97,
         },
         {
           quote:
             "The support executive resolved my account issue quickly.",
           source: "Social Media",
-          sentiment: "Positive" as const,
+          sentiment: "Positive",
+          relevance: 91,
+        },
+        {
+          quote:
+            "The interface feels simple and responsive.",
+          source: "Customer Survey",
+          sentiment: "Positive",
+          relevance: 88,
         },
       ],
     };
@@ -107,89 +250,257 @@ function generateDemoAnswer(question: string) {
 
   if (
     normalizedQuestion.includes("issue") ||
-    normalizedQuestion.includes("attention") ||
-    normalizedQuestion.includes("problem")
+    normalizedQuestion.includes(
+      "attention",
+    ) ||
+    normalizedQuestion.includes(
+      "problem",
+    ) ||
+    normalizedQuestion.includes(
+      "urgent",
+    )
   ) {
     return {
-      content:
-        "The most urgent issue is checkout performance, followed by delayed payment confirmation. Customers experience page slowdown when multiple products are added. These two areas should receive immediate attention.",
+      content: concise
+        ? "Checkout slowdown is the most urgent issue, followed by delayed payment confirmation. Both should receive immediate technical attention."
+        : "The most urgent issue is checkout performance, followed by delayed payment confirmation. Customers experience page slowdown when multiple products are added, while delayed confirmation creates uncertainty after payment. These two areas should receive immediate technical investigation.",
+      confidence: 96,
+      themes: [
+        "Checkout Performance",
+        "Payment Confirmation",
+        "Technical Issues",
+      ],
       evidence: [
         {
           quote:
             "The checkout page becomes slow when multiple products are added.",
           source: "Survey",
-          sentiment: "Negative" as const,
+          sentiment: "Negative",
+          relevance: 98,
         },
         {
           quote:
             "Payment confirmation took too long.",
           source: "Support Ticket",
-          sentiment: "Neutral" as const,
+          sentiment: "Neutral",
+          relevance: 92,
+        },
+        {
+          quote:
+            "The application froze for a few seconds during checkout.",
+          source: "App Review",
+          sentiment: "Negative",
+          relevance: 89,
+        },
+      ],
+    };
+  }
+
+  if (
+    normalizedQuestion.includes(
+      "support",
+    ) ||
+    normalizedQuestion.includes(
+      "service",
+    )
+  ) {
+    return {
+      content: concise
+        ? "Customer support receives mostly positive feedback for quick issue resolution, but response consistency can still improve."
+        : "Customer support receives mostly positive feedback. Customers appreciate quick issue resolution and helpful executives. However, a small group reports inconsistent response times during peak hours, suggesting that support availability could be improved.",
+      confidence: 88,
+      themes: [
+        "Customer Support",
+        "Response Time",
+        "Issue Resolution",
+      ],
+      evidence: [
+        {
+          quote:
+            "The support executive resolved my problem quickly.",
+          source: "Support Ticket",
+          sentiment: "Positive",
+          relevance: 95,
+        },
+        {
+          quote:
+            "The response was helpful, but I waited longer during the evening.",
+          source: "Email",
+          sentiment: "Neutral",
+          relevance: 84,
         },
       ],
     };
   }
 
   return {
-    content:
-      "Based on the available demo feedback, customers generally like the dashboard and customer-support experience. The main improvement opportunities are checkout speed, payment confirmation and onboarding clarity.",
+    content: concise
+      ? "Customers generally like the dashboard and support experience. The main opportunities are checkout speed, payment confirmation and onboarding clarity."
+      : "Based on the available demo feedback, customers generally like the dashboard, responsive interface and customer-support experience. The main improvement opportunities are checkout performance, payment confirmation speed and onboarding clarity for first-time users.",
+    confidence: 86,
+    themes: [
+      "Customer Experience",
+      "Product Performance",
+      "Onboarding",
+    ],
     evidence: [
       {
         quote:
           "The dashboard is clean and easy to use.",
         source: "App Review",
-        sentiment: "Positive" as const,
+        sentiment: "Positive",
+        relevance: 91,
       },
       {
         quote:
           "The checkout page becomes slow when multiple products are added.",
         source: "Survey",
-        sentiment: "Negative" as const,
+        sentiment: "Negative",
+        relevance: 88,
+      },
+      {
+        quote:
+          "A shorter onboarding guide would be helpful.",
+        source: "NPS Survey",
+        sentiment: "Neutral",
+        relevance: 82,
       },
     ],
   };
 }
 
 function getEvidenceStyle(
-  sentiment: Evidence["sentiment"],
+  sentiment: Sentiment,
 ) {
   if (sentiment === "Positive") {
-    return "bg-emerald-100 text-emerald-700";
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
 
   if (sentiment === "Negative") {
-    return "bg-rose-100 text-rose-700";
+    return "border-rose-200 bg-rose-50 text-rose-700";
   }
 
-  return "bg-amber-100 text-amber-700";
+  return "border-amber-200 bg-amber-50 text-amber-700";
+}
+
+function formatMessageTime(dateValue: string) {
+  const date = new Date(dateValue);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat(
+    "en-IN",
+    {
+      hour: "2-digit",
+      minute: "2-digit",
+    },
+  ).format(date);
 }
 
 export default function AskLoopPage() {
   const [input, setInput] = useState("");
+
+  const [answerMode, setAnswerMode] =
+    useState<AnswerMode>("Detailed");
+
   const [isThinking, setIsThinking] =
     useState(false);
 
   const [messages, setMessages] = useState<
     ChatMessage[]
-  >([
-    {
-      id: 1,
-      role: "assistant",
-      content:
-        "Hello! I am LOOP AI. Ask me about customer sentiment, recurring issues, product opportunities or feedback themes.",
-    },
-  ]);
+  >([initialAssistantMessage]);
+
+  const [
+    selectedFeedbackRating,
+    setSelectedFeedbackRating,
+  ] = useState<
+    Record<string, "helpful" | "not-helpful">
+  >({});
+
+  const [
+    copiedMessageId,
+    setCopiedMessageId,
+  ] = useState("");
+
+  const [toastMessage, setToastMessage] =
+    useState<ToastMessage | null>(null);
 
   const chatBottomRef =
     useRef<HTMLDivElement | null>(null);
 
+  const inputRef =
+    useRef<HTMLTextAreaElement | null>(null);
+
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({
       behavior: "smooth",
+      block: "end",
     });
   }, [messages, isThinking]);
 
-  function sendQuestion(customQuestion?: string) {
+  useEffect(() => {
+    if (!toastMessage) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setToastMessage(null);
+    }, 3000);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [toastMessage]);
+
+  const conversationStats = useMemo(() => {
+    const userQuestions = messages.filter(
+      (message) => message.role === "user",
+    ).length;
+
+    const assistantAnswers = messages.filter(
+      (message) =>
+        message.role === "assistant" &&
+        message.evidence,
+    ).length;
+
+    const evidenceCount = messages.reduce(
+      (total, message) =>
+        total +
+        (message.evidence?.length ?? 0),
+      0,
+    );
+
+    return {
+      userQuestions,
+      assistantAnswers,
+      evidenceCount,
+    };
+  }, [messages]);
+
+  const recentQuestions = useMemo(() => {
+    return messages
+      .filter(
+        (message) => message.role === "user",
+      )
+      .slice(-3)
+      .reverse();
+  }, [messages]);
+
+  function showToast(
+    type: ToastMessage["type"],
+    message: string,
+  ) {
+    setToastMessage({
+      type,
+      message,
+    });
+  }
+
+  function sendQuestion(
+    customQuestion?: string,
+  ) {
     const question = (
       customQuestion ?? input
     ).trim();
@@ -198,10 +509,22 @@ export default function AskLoopPage() {
       return;
     }
 
+    if (
+      question.length >
+      maximumQuestionLength
+    ) {
+      showToast(
+        "error",
+        `Question must be within ${maximumQuestionLength} characters.`,
+      );
+      return;
+    }
+
     const userMessage: ChatMessage = {
-      id: Date.now(),
+      id: createMessageId(),
       role: "user",
       content: question,
+      createdAt: new Date().toISOString(),
     };
 
     setMessages((previousMessages) => [
@@ -213,14 +536,19 @@ export default function AskLoopPage() {
     setIsThinking(true);
 
     window.setTimeout(() => {
-      const answer =
-        generateDemoAnswer(question);
+      const answer = generateDemoAnswer(
+        question,
+        answerMode,
+      );
 
       const assistantMessage: ChatMessage = {
-        id: Date.now() + 1,
+        id: createMessageId(),
         role: "assistant",
         content: answer.content,
         evidence: answer.evidence,
+        themes: answer.themes,
+        confidence: answer.confidence,
+        createdAt: new Date().toISOString(),
       };
 
       setMessages((previousMessages) => [
@@ -229,7 +557,8 @@ export default function AskLoopPage() {
       ]);
 
       setIsThinking(false);
-    }, 900);
+      inputRef.current?.focus();
+    }, 1100);
   }
 
   function handleSubmit(
@@ -239,17 +568,82 @@ export default function AskLoopPage() {
     sendQuestion();
   }
 
+  function handleInputKeyDown(
+    event: KeyboardEvent<HTMLTextAreaElement>,
+  ) {
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey
+    ) {
+      event.preventDefault();
+      sendQuestion();
+    }
+  }
+
   function clearConversation() {
     setMessages([
       {
-        id: Date.now(),
-        role: "assistant",
+        ...initialAssistantMessage,
+        id: createMessageId(),
         content:
           "Conversation cleared. Ask me a new question about your customer feedback.",
+        createdAt: new Date().toISOString(),
       },
     ]);
 
     setInput("");
+    setSelectedFeedbackRating({});
+    setCopiedMessageId("");
+
+    showToast(
+      "success",
+      "Conversation cleared successfully.",
+    );
+  }
+
+  async function copyAnswer(
+    message: ChatMessage,
+  ) {
+    try {
+      await navigator.clipboard.writeText(
+        message.content,
+      );
+
+      setCopiedMessageId(message.id);
+
+      showToast(
+        "success",
+        "Answer copied to clipboard.",
+      );
+
+      window.setTimeout(() => {
+        setCopiedMessageId("");
+      }, 2000);
+    } catch {
+      showToast(
+        "error",
+        "Unable to copy the answer.",
+      );
+    }
+  }
+
+  function rateAnswer(
+    messageId: string,
+    rating: "helpful" | "not-helpful",
+  ) {
+    setSelectedFeedbackRating(
+      (previous) => ({
+        ...previous,
+        [messageId]: rating,
+      }),
+    );
+
+    showToast(
+      "info",
+      rating === "helpful"
+        ? "Thanks for your feedback."
+        : "Feedback recorded. The answer can be improved.",
+    );
   }
 
   return (
@@ -257,338 +651,1092 @@ export default function AskLoopPage() {
       title="Ask LOOP"
       subtitle="Ask questions and receive evidence-backed customer insights."
     >
-      {/* Hero Section */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-700 via-blue-700 to-slate-950 p-7 text-white shadow-xl md:p-9">
-        <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-3xl" />
+      <div className="relative space-y-6">
+        {/* Toast */}
+        {toastMessage && (
+          <div
+            className={`fixed right-4 top-24 z-[90] flex max-w-sm items-start gap-3 rounded-2xl border bg-white p-4 shadow-2xl sm:right-8 ${
+              toastMessage.type === "success"
+                ? "border-emerald-200"
+                : toastMessage.type === "error"
+                  ? "border-rose-200"
+                  : "border-blue-200"
+            }`}
+          >
+            <span
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-bold ${
+                toastMessage.type === "success"
+                  ? "bg-emerald-100 text-emerald-700"
+                  : toastMessage.type === "error"
+                    ? "bg-rose-100 text-rose-700"
+                    : "bg-blue-100 text-blue-700"
+              }`}
+            >
+              {toastMessage.type === "success"
+                ? "✓"
+                : toastMessage.type === "error"
+                  ? "!"
+                  : "i"}
+            </span>
 
-        <div className="absolute -bottom-20 left-1/3 h-52 w-52 rounded-full bg-violet-400/20 blur-3xl" />
+            <div>
+              <p className="text-sm font-bold text-slate-950">
+                {toastMessage.type === "success"
+                  ? "Success"
+                  : toastMessage.type === "error"
+                    ? "Unable to complete"
+                    : "Information"}
+              </p>
 
-        <div className="relative">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold">
-            <span className="h-2 w-2 rounded-full bg-emerald-400" />
-            AI feedback analyst
+              <p className="mt-1 text-xs leading-5 text-slate-600">
+                {toastMessage.message}
+              </p>
+            </div>
           </div>
+        )}
 
-          <h1 className="mt-5 max-w-3xl text-3xl font-bold leading-tight md:text-4xl">
-            Ask your customer feedback a
-            question.
-          </h1>
+        {/* Hero */}
+        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-700 via-blue-700 to-slate-950 p-6 text-white shadow-xl sm:p-8">
+          <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
 
-          <p className="mt-4 max-w-2xl text-sm leading-6 text-blue-100 md:text-base">
-            LOOP finds relevant customer
-            conversations and returns a clear
-            answer supported by real feedback
-            evidence.
-          </p>
-        </div>
-      </section>
+          <div className="absolute -bottom-20 left-1/3 h-60 w-60 rounded-full bg-violet-400/20 blur-3xl" />
 
-      {/* Prototype Notice */}
-      <section className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
-        <p className="text-sm font-bold text-amber-800">
-          Frontend Prototype
-        </p>
+          <div className="absolute right-[30%] top-10 hidden h-32 w-32 rounded-full border border-white/10 lg:block" />
 
-        <p className="mt-1 text-sm leading-6 text-amber-700">
-          These responses currently use frontend
-          demo logic. Claude API, embeddings,
-          database search and real RAG functionality
-          will be connected by the backend.
-        </p>
-      </section>
+          <div className="relative flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
+            <div className="max-w-3xl">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold backdrop-blur">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
 
-      <section className="mt-7 grid gap-6 xl:grid-cols-[minmax(0,1fr)_350px]">
-        {/* Chat Area */}
-        <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          {/* Chat Header */}
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 p-5">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-violet-600 text-sm font-bold text-white shadow-lg shadow-blue-200">
-                AI
+                  AI Feedback Analyst
+                </span>
+
+                <span className="rounded-full bg-violet-400/10 px-3 py-1.5 text-xs font-bold text-violet-200">
+                  Evidence-backed answers
+                </span>
               </div>
 
-              <div>
-                <h2 className="font-bold">
-                  LOOP Intelligence Assistant
-                </h2>
+              <h1 className="mt-5 max-w-2xl text-3xl font-bold leading-tight sm:text-4xl">
+                Ask your customer feedback a
+                question.
+              </h1>
 
-                <p className="mt-1 text-xs text-slate-500">
-                  Evidence-backed feedback
-                  conversation
-                </p>
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-blue-100 sm:text-base">
+                LOOP analyses customer
+                conversations and returns a clear
+                answer supported by relevant
+                feedback evidence.
+              </p>
+
+              <div className="mt-6 flex flex-wrap gap-4 text-xs font-semibold text-blue-100">
+                <HeroFeature>
+                  Sentiment analysis
+                </HeroFeature>
+
+                <HeroFeature>
+                  Theme detection
+                </HeroFeature>
+
+                <HeroFeature>
+                  Supporting evidence
+                </HeroFeature>
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={clearConversation}
-              className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
-            >
-              Clear Chat
-            </button>
+            <div className="grid gap-3 sm:grid-cols-3 lg:w-[430px] lg:grid-cols-1">
+              <HeroStat
+                value="1,248"
+                label="Feedback records"
+              />
+
+              <HeroStat
+                value="12"
+                label="Active themes"
+              />
+
+              <HeroStat
+                value="94%"
+                label="AI confidence"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Prototype Notice */}
+        <section className="flex flex-col gap-4 rounded-2xl border border-amber-200 bg-amber-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+              <InfoIcon />
+            </span>
+
+            <div>
+              <p className="text-sm font-bold text-amber-900">
+                Frontend demonstration
+              </p>
+
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-amber-800">
+                Responses currently use demo
+                feedback data. The backend API,
+                vector search and live RAG data
+                connection can be integrated without
+                changing this interface.
+              </p>
+            </div>
           </div>
 
-          {/* Messages */}
-          <div className="h-[540px] space-y-5 overflow-y-auto bg-slate-50 p-5 md:p-6">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={
-                  message.role === "user"
-                    ? "flex justify-end"
-                    : "flex justify-start"
-                }
-              >
-                <div
-                  className={
-                    message.role === "user"
-                      ? "max-w-[85%] rounded-2xl rounded-br-md bg-slate-950 px-5 py-4 text-sm leading-6 text-white shadow-sm"
-                      : "max-w-[92%] rounded-2xl rounded-bl-md border border-slate-200 bg-white px-5 py-4 text-sm leading-6 text-slate-700 shadow-sm"
+          <span className="w-fit shrink-0 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-800">
+            Demo mode
+          </span>
+        </section>
+
+        {/* Workspace */}
+        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+          {/* Chat */}
+          <article className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+            {/* Chat Header */}
+            <div className="flex flex-col gap-4 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+              <div className="flex items-center gap-3">
+                <span className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-violet-600 text-sm font-black text-white shadow-lg shadow-blue-200">
+                  AI
+
+                  <span className="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-400" />
+                </span>
+
+                <div>
+                  <h2 className="font-bold text-slate-950">
+                    LOOP Intelligence Assistant
+                  </h2>
+
+                  <p className="mt-1 text-xs text-slate-500">
+                    Online · Feedback knowledge base
+                    connected
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <div className="flex rounded-xl bg-slate-100 p-1">
+                  {(
+                    [
+                      "Concise",
+                      "Detailed",
+                    ] as AnswerMode[]
+                  ).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() =>
+                        setAnswerMode(mode)
+                      }
+                      className={`rounded-lg px-3 py-2 text-xs font-bold transition ${
+                        answerMode === mode
+                          ? "bg-white text-slate-950 shadow-sm"
+                          : "text-slate-500 hover:text-slate-800"
+                      }`}
+                    >
+                      {mode}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={clearConversation}
+                  disabled={
+                    messages.length === 1 &&
+                    messages[0].id ===
+                      "welcome-message"
                   }
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Clear Chat
+                </button>
+              </div>
+            </div>
+
+            {/* Messages */}
+            <div className="h-[610px] space-y-6 overflow-y-auto bg-slate-50 p-4 sm:p-6">
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex gap-3 ${
+                    message.role === "user"
+                      ? "justify-end"
+                      : "justify-start"
+                  }`}
                 >
                   {message.role ===
                     "assistant" && (
-                    <div className="mb-3 flex items-center gap-2">
+                    <span className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-violet-600 text-[10px] font-black text-white sm:flex">
+                      AI
+                    </span>
+                  )}
+
+                  <div
+                    className={`max-w-[92%] sm:max-w-[85%] ${
+                      message.role === "user"
+                        ? "rounded-3xl rounded-br-md bg-slate-950 px-5 py-4 text-white shadow-sm"
+                        : "rounded-3xl rounded-bl-md border border-slate-200 bg-white px-5 py-4 text-slate-700 shadow-sm"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <p
+                        className={`text-xs font-bold uppercase tracking-wider ${
+                          message.role === "user"
+                            ? "text-slate-300"
+                            : "text-blue-600"
+                        }`}
+                      >
+                        {message.role === "user"
+                          ? "Your Question"
+                          : "LOOP Answer"}
+                      </p>
+
+                      <span
+                        className={`text-[10px] ${
+                          message.role === "user"
+                            ? "text-slate-400"
+                            : "text-slate-400"
+                        }`}
+                      >
+                        {formatMessageTime(
+                          message.createdAt,
+                        )}
+                      </span>
+                    </div>
+
+                    <p
+                      className={`mt-3 text-sm leading-7 ${
+                        message.role === "user"
+                          ? "text-slate-100"
+                          : "text-slate-700"
+                      }`}
+                    >
+                      {message.content}
+                    </p>
+
+                    {message.themes &&
+                      message.themes.length >
+                        0 && (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {message.themes.map(
+                            (theme) => (
+                              <span
+                                key={theme}
+                                className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[10px] font-bold text-blue-700"
+                              >
+                                {theme}
+                              </span>
+                            ),
+                          )}
+                        </div>
+                      )}
+
+                    {typeof message.confidence ===
+                      "number" && (
+                      <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-bold text-slate-600">
+                            Answer confidence
+                          </p>
+
+                          <p className="text-xs font-black text-blue-700">
+                            {message.confidence}%
+                          </p>
+                        </div>
+
+                        <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-blue-600 to-violet-600"
+                            style={{
+                              width: `${message.confidence}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {message.evidence &&
+                      message.evidence.length >
+                        0 && (
+                        <div className="mt-5 border-t border-slate-200 pt-5">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                                Supporting Evidence
+                              </p>
+
+                              <p className="mt-1 text-[10px] text-slate-400">
+                                {
+                                  message.evidence
+                                    .length
+                                }{" "}
+                                relevant feedback
+                                records
+                              </p>
+                            </div>
+
+                            <span className="rounded-full bg-violet-50 px-3 py-1 text-[10px] font-bold text-violet-700">
+                              Evidence backed
+                            </span>
+                          </div>
+
+                          <div className="mt-4 space-y-3">
+                            {message.evidence.map(
+                              (
+                                evidence,
+                                index,
+                              ) => (
+                                <article
+                                  key={`${message.id}-${evidence.source}-${index}`}
+                                  className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                                >
+                                  <div className="flex items-start gap-3">
+                                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white text-xs font-black text-blue-700 shadow-sm">
+                                      {index + 1}
+                                    </span>
+
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-sm italic leading-6 text-slate-600">
+                                        “
+                                        {
+                                          evidence.quote
+                                        }
+                                        ”
+                                      </p>
+
+                                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                                        <span className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[10px] font-bold text-blue-700">
+                                          {
+                                            evidence.source
+                                          }
+                                        </span>
+
+                                        <span
+                                          className={`rounded-full border px-2.5 py-1 text-[10px] font-bold ${getEvidenceStyle(
+                                            evidence.sentiment,
+                                          )}`}
+                                        >
+                                          {
+                                            evidence.sentiment
+                                          }
+                                        </span>
+
+                                        <span className="text-[10px] font-semibold text-slate-400">
+                                          {
+                                            evidence.relevance
+                                          }
+                                          % relevance
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </article>
+                              ),
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                    {message.role ===
+                      "assistant" &&
+                      message.evidence && (
+                        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                rateAnswer(
+                                  message.id,
+                                  "helpful",
+                                )
+                              }
+                              aria-label="Mark answer as helpful"
+                              className={`flex h-8 w-8 items-center justify-center rounded-lg border transition ${
+                                selectedFeedbackRating[
+                                  message.id
+                                ] === "helpful"
+                                  ? "border-emerald-300 bg-emerald-100 text-emerald-700"
+                                  : "border-slate-200 bg-white text-slate-500 hover:bg-emerald-50 hover:text-emerald-700"
+                              }`}
+                            >
+                              <ThumbUpIcon />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                rateAnswer(
+                                  message.id,
+                                  "not-helpful",
+                                )
+                              }
+                              aria-label="Mark answer as not helpful"
+                              className={`flex h-8 w-8 items-center justify-center rounded-lg border transition ${
+                                selectedFeedbackRating[
+                                  message.id
+                                ] ===
+                                "not-helpful"
+                                  ? "border-rose-300 bg-rose-100 text-rose-700"
+                                  : "border-slate-200 bg-white text-slate-500 hover:bg-rose-50 hover:text-rose-700"
+                              }`}
+                            >
+                              <ThumbDownIcon />
+                            </button>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void copyAnswer(
+                                message,
+                              )
+                            }
+                            className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-slate-500 transition hover:bg-slate-100 hover:text-blue-700"
+                          >
+                            {copiedMessageId ===
+                            message.id ? (
+                              <>
+                                <CheckIcon />
+                                Copied
+                              </>
+                            ) : (
+                              <>
+                                <CopyIcon />
+                                Copy answer
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                  </div>
+
+                  {message.role === "user" && (
+                    <span className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-[10px] font-black text-white sm:flex">
+                      YOU
+                    </span>
+                  )}
+                </div>
+              ))}
+
+              {/* Thinking */}
+              {isThinking && (
+                <div className="flex gap-3">
+                  <span className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-violet-600 text-[10px] font-black text-white sm:flex">
+                    AI
+                  </span>
+
+                  <div className="rounded-3xl rounded-bl-md border border-slate-200 bg-white px-5 py-4 shadow-sm">
+                    <div className="flex items-center gap-2">
                       <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-[10px] font-bold text-blue-700">
                         AI
                       </span>
 
                       <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
-                        LOOP Answer
+                        Analysing feedback
                       </p>
                     </div>
-                  )}
 
-                  <p>{message.content}</p>
+                    <p className="mt-3 text-xs text-slate-500">
+                      Retrieving relevant customer
+                      evidence…
+                    </p>
 
-                  {message.evidence &&
-                    message.evidence.length >
-                      0 && (
-                      <div className="mt-5 space-y-3 border-t border-slate-200 pt-4">
-                        <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                          Supporting Evidence
-                        </p>
+                    <div className="mt-4 flex items-center gap-1.5">
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-blue-500" />
 
-                        {message.evidence.map(
-                          (evidence, index) => (
-                            <article
-                              key={`${evidence.source}-${index}`}
-                              className="rounded-xl border border-slate-200 bg-slate-50 p-4"
-                            >
-                              <p className="text-sm italic leading-6 text-slate-600">
-                                “{evidence.quote}”
-                              </p>
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-blue-500 [animation-delay:120ms]" />
 
-                              <div className="mt-3 flex flex-wrap items-center gap-2">
-                                <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">
-                                  {evidence.source}
-                                </span>
-
-                                <span
-                                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${getEvidenceStyle(
-                                    evidence.sentiment,
-                                  )}`}
-                                >
-                                  {
-                                    evidence.sentiment
-                                  }
-                                </span>
-                              </div>
-                            </article>
-                          ),
-                        )}
-                      </div>
-                    )}
-                </div>
-              </div>
-            ))}
-
-            {/* AI Loading */}
-            {isThinking && (
-              <div className="flex justify-start">
-                <div className="rounded-2xl rounded-bl-md border border-slate-200 bg-white px-5 py-4 shadow-sm">
-                  <p className="mb-3 text-xs font-bold uppercase tracking-wider text-blue-600">
-                    LOOP is analysing
-                  </p>
-
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 animate-bounce rounded-full bg-blue-500" />
-
-                    <span className="h-2 w-2 animate-bounce rounded-full bg-blue-500 [animation-delay:120ms]" />
-
-                    <span className="h-2 w-2 animate-bounce rounded-full bg-blue-500 [animation-delay:240ms]" />
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-blue-500 [animation-delay:240ms]" />
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-
-            <div ref={chatBottomRef} />
-          </div>
-
-          {/* Input */}
-          <form
-            onSubmit={handleSubmit}
-            className="border-t border-slate-200 bg-white p-4"
-          >
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <input
-                type="text"
-                value={input}
-                onChange={(event) =>
-                  setInput(event.target.value)
-                }
-                placeholder="Ask about payments, onboarding, sentiment..."
-                className="min-w-0 flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
-              />
-
-              <button
-                type="submit"
-                disabled={
-                  isThinking || !input.trim()
-                }
-                className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isThinking
-                  ? "Thinking..."
-                  : "Send →"}
-              </button>
-            </div>
-
-            <p className="mt-2 text-xs text-slate-400">
-              Ask only questions related to the
-              collected customer feedback.
-            </p>
-          </form>
-        </article>
-
-        {/* Right Panel */}
-        <aside className="space-y-6">
-          {/* Suggested Questions */}
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="font-bold">
-              Suggested Questions
-            </h2>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Select a question to begin.
-            </p>
-
-            <div className="mt-5 space-y-3">
-              {suggestedQuestions.map(
-                (question, index) => (
-                  <button
-                    key={question}
-                    type="button"
-                    onClick={() =>
-                      sendQuestion(question)
-                    }
-                    disabled={isThinking}
-                    className="group flex w-full items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-blue-300 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-xs font-bold text-blue-700 shadow-sm">
-                      {index + 1}
-                    </span>
-
-                    <span className="text-sm font-medium leading-5 text-slate-700 group-hover:text-blue-700">
-                      {question}
-                    </span>
-                  </button>
-                ),
               )}
-            </div>
-          </section>
 
-          {/* How it Works */}
-          <section className="rounded-2xl bg-slate-950 p-5 text-white shadow-lg">
-            <div className="flex items-center justify-between">
-              <h2 className="font-bold">
-                How Ask LOOP Works
+              <div ref={chatBottomRef} />
+            </div>
+
+            {/* Input */}
+            <form
+              onSubmit={handleSubmit}
+              className="border-t border-slate-200 bg-white p-4 sm:p-5"
+            >
+              <div className="rounded-2xl border border-slate-300 bg-slate-50 p-3 transition focus-within:border-blue-600 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-100">
+                <textarea
+                  ref={inputRef}
+                  rows={3}
+                  value={input}
+                  maxLength={
+                    maximumQuestionLength
+                  }
+                  disabled={isThinking}
+                  onKeyDown={
+                    handleInputKeyDown
+                  }
+                  onChange={(event) =>
+                    setInput(event.target.value)
+                  }
+                  placeholder="Ask about payments, onboarding, sentiment, urgent issues or customer themes…"
+                  className="w-full resize-none bg-transparent px-1 py-1 text-sm leading-6 text-slate-950 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed"
+                />
+
+                <div className="mt-2 flex flex-col gap-3 border-t border-slate-200 pt-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <p className="text-[10px] font-semibold text-slate-400">
+                      Enter to send · Shift + Enter
+                      for new line
+                    </p>
+
+                    <span
+                      className={`text-[10px] font-bold ${
+                        input.length >
+                        maximumQuestionLength -
+                          50
+                          ? "text-rose-600"
+                          : "text-slate-400"
+                      }`}
+                    >
+                      {input.length}/
+                      {maximumQuestionLength}
+                    </span>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={
+                      isThinking ||
+                      !input.trim()
+                    }
+                    className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isThinking ? (
+                      <>
+                        <LoadingSpinner />
+                        Thinking…
+                      </>
+                    ) : (
+                      <>
+                        Send Question
+                        <SendIcon />
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <p className="mt-3 text-center text-[10px] text-slate-400">
+                LOOP may produce inaccurate answers.
+                Verify important insights using the
+                supporting evidence.
+              </p>
+            </form>
+          </article>
+
+          {/* Right Sidebar */}
+          <aside className="space-y-6">
+            {/* Suggestions */}
+            <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="font-bold text-slate-950">
+                    Suggested Questions
+                  </h2>
+
+                  <p className="mt-1 text-xs text-slate-500">
+                    Select a question to begin.
+                  </p>
+                </div>
+
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+                  <QuestionIcon />
+                </span>
+              </div>
+
+              <div className="mt-5 space-y-3">
+                {suggestedQuestions.map(
+                  (question, index) => (
+                    <button
+                      key={question.title}
+                      type="button"
+                      disabled={isThinking}
+                      onClick={() =>
+                        sendQuestion(
+                          question.title,
+                        )
+                      }
+                      className="group w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-blue-300 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white text-xs font-black text-blue-700 shadow-sm">
+                          {index + 1}
+                        </span>
+
+                        <div className="min-w-0">
+                          <span className="rounded-full bg-blue-100 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-blue-700">
+                            {question.category}
+                          </span>
+
+                          <p className="mt-3 text-sm font-bold leading-5 text-slate-700 group-hover:text-blue-800">
+                            {question.title}
+                          </p>
+
+                          <p className="mt-2 text-xs leading-5 text-slate-500">
+                            {
+                              question.description
+                            }
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  ),
+                )}
+              </div>
+            </section>
+
+            {/* Conversation Stats */}
+            <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="font-bold text-slate-950">
+                Conversation Insights
               </h2>
 
-              <span className="rounded-full bg-blue-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider">
-                RAG
-              </span>
-            </div>
+              <div className="mt-5 grid grid-cols-3 gap-3">
+                <SmallStat
+                  value={
+                    conversationStats.userQuestions
+                  }
+                  label="Questions"
+                  tone="blue"
+                />
 
-            <div className="mt-6 space-y-6">
-              {[
-                {
-                  number: "1",
-                  title: "Understand",
-                  description:
-                    "LOOP understands the meaning of the question.",
-                },
-                {
-                  number: "2",
-                  title: "Retrieve",
-                  description:
-                    "Relevant customer feedback records are selected.",
-                },
-                {
-                  number: "3",
-                  title: "Generate",
-                  description:
-                    "AI creates an answer using only that evidence.",
-                },
-                {
-                  number: "4",
-                  title: "Cite",
-                  description:
-                    "Supporting feedback is displayed with the answer.",
-                },
-              ].map((step) => (
-                <div
-                  key={step.number}
-                  className="flex gap-3"
-                >
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-xs font-bold">
-                    {step.number}
-                  </span>
+                <SmallStat
+                  value={
+                    conversationStats.assistantAnswers
+                  }
+                  label="Answers"
+                  tone="violet"
+                />
 
-                  <div>
-                    <p className="text-sm font-semibold">
-                      {step.title}
-                    </p>
+                <SmallStat
+                  value={
+                    conversationStats.evidenceCount
+                  }
+                  label="Evidence"
+                  tone="emerald"
+                />
+              </div>
 
-                    <p className="mt-1 text-xs leading-5 text-slate-400">
-                      {step.description}
-                    </p>
+              {recentQuestions.length > 0 && (
+                <div className="mt-6 border-t border-slate-100 pt-5">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Recent questions
+                  </p>
+
+                  <div className="mt-3 space-y-2">
+                    {recentQuestions.map(
+                      (message) => (
+                        <button
+                          key={message.id}
+                          type="button"
+                          disabled={isThinking}
+                          onClick={() =>
+                            sendQuestion(
+                              message.content,
+                            )
+                          }
+                          className="line-clamp-2 w-full rounded-xl bg-slate-50 px-3 py-2.5 text-left text-xs font-semibold leading-5 text-slate-600 transition hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50"
+                        >
+                          {message.content}
+                        </button>
+                      ),
+                    )}
                   </div>
                 </div>
-              ))}
-            </div>
-          </section>
+              )}
+            </section>
 
-          {/* Insight Stats */}
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="font-bold">
-              Knowledge Base
-            </h2>
+            {/* How It Works */}
+            <section className="rounded-3xl bg-gradient-to-br from-slate-950 to-indigo-950 p-5 text-white shadow-lg">
+              <div className="flex items-center justify-between">
+                <h2 className="font-bold">
+                  How Ask LOOP Works
+                </h2>
 
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              <div className="rounded-xl bg-blue-50 p-4">
-                <p className="text-2xl font-bold text-blue-700">
-                  1,248
-                </p>
-
-                <p className="mt-1 text-xs text-blue-600">
-                  Feedback records
-                </p>
+                <span className="rounded-full bg-blue-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider">
+                  RAG
+                </span>
               </div>
 
-              <div className="rounded-xl bg-violet-50 p-4">
-                <p className="text-2xl font-bold text-violet-700">
-                  12
-                </p>
+              <div className="mt-6 space-y-5">
+                <ProcessStep
+                  number="1"
+                  title="Understand"
+                  description="LOOP understands the meaning and intent of the question."
+                />
 
-                <p className="mt-1 text-xs text-violet-600">
-                  Active themes
-                </p>
+                <ProcessStep
+                  number="2"
+                  title="Retrieve"
+                  description="Relevant customer feedback records are selected."
+                />
+
+                <ProcessStep
+                  number="3"
+                  title="Generate"
+                  description="AI creates an answer using the retrieved evidence."
+                />
+
+                <ProcessStep
+                  number="4"
+                  title="Cite"
+                  description="Supporting feedback is displayed with the answer."
+                />
               </div>
-            </div>
-          </section>
-        </aside>
-      </section>
+            </section>
+
+            {/* Knowledge Base */}
+            <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <h2 className="font-bold text-slate-950">
+                  Knowledge Base
+                </h2>
+
+                <span className="flex items-center gap-2 text-xs font-bold text-emerald-700">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  Ready
+                </span>
+              </div>
+
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <KnowledgeCard
+                  value="1,248"
+                  label="Feedback records"
+                  tone="blue"
+                />
+
+                <KnowledgeCard
+                  value="12"
+                  label="Active themes"
+                  tone="violet"
+                />
+
+                <KnowledgeCard
+                  value="5"
+                  label="Data sources"
+                  tone="emerald"
+                />
+
+                <KnowledgeCard
+                  value="94%"
+                  label="AI confidence"
+                  tone="amber"
+                />
+              </div>
+            </section>
+          </aside>
+        </section>
+      </div>
     </LoopShell>
+  );
+}
+
+function HeroFeature({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  return (
+    <span className="flex items-center gap-2">
+      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-400/15 text-emerald-300">
+        ✓
+      </span>
+
+      {children}
+    </span>
+  );
+}
+
+function HeroStat({
+  value,
+  label,
+}: {
+  value: string;
+  label: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/15 bg-white/10 px-5 py-4 backdrop-blur">
+      <p className="text-2xl font-black text-white">
+        {value}
+      </p>
+
+      <p className="mt-1 text-xs font-semibold text-blue-100">
+        {label}
+      </p>
+    </div>
+  );
+}
+
+function SmallStat({
+  value,
+  label,
+  tone,
+}: {
+  value: number;
+  label: string;
+  tone: "blue" | "violet" | "emerald";
+}) {
+  const styles = {
+    blue: "bg-blue-50 text-blue-700",
+    violet:
+      "bg-violet-50 text-violet-700",
+    emerald:
+      "bg-emerald-50 text-emerald-700",
+  };
+
+  return (
+    <div
+      className={`rounded-2xl p-3 text-center ${styles[tone]}`}
+    >
+      <p className="text-xl font-black">
+        {value}
+      </p>
+
+      <p className="mt-1 text-[10px] font-bold">
+        {label}
+      </p>
+    </div>
+  );
+}
+
+function KnowledgeCard({
+  value,
+  label,
+  tone,
+}: {
+  value: string;
+  label: string;
+  tone:
+    | "blue"
+    | "violet"
+    | "emerald"
+    | "amber";
+}) {
+  const styles = {
+    blue: "bg-blue-50 text-blue-700",
+    violet:
+      "bg-violet-50 text-violet-700",
+    emerald:
+      "bg-emerald-50 text-emerald-700",
+    amber: "bg-amber-50 text-amber-700",
+  };
+
+  return (
+    <div
+      className={`rounded-2xl p-4 ${styles[tone]}`}
+    >
+      <p className="text-2xl font-black">
+        {value}
+      </p>
+
+      <p className="mt-1 text-[10px] font-bold leading-4">
+        {label}
+      </p>
+    </div>
+  );
+}
+
+function ProcessStep({
+  number,
+  title,
+  description,
+}: {
+  number: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex gap-3">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-xs font-black">
+        {number}
+      </span>
+
+      <div>
+        <p className="text-sm font-bold">
+          {title}
+        </p>
+
+        <p className="mt-1 text-xs leading-5 text-slate-400">
+          {description}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function LoadingSpinner() {
+  return (
+    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+  );
+}
+
+function InfoIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-5 w-5"
+      aria-hidden="true"
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+      />
+
+      <path
+        strokeLinecap="round"
+        d="M12 11v5M12 8h.01"
+      />
+    </svg>
+  );
+}
+
+function SendIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="m4 4 17 8-17 8 3-8-3-8Z"
+      />
+
+      <path
+        strokeLinecap="round"
+        d="M7 12h14"
+      />
+    </svg>
+  );
+}
+
+function CopyIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <rect
+        x="8"
+        y="8"
+        width="11"
+        height="11"
+        rx="2"
+      />
+
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"
+      />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="m5 12 4 4L19 6"
+      />
+    </svg>
+  );
+}
+
+function ThumbUpIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M7 10v10H4V10h3ZM7 18h9a3 3 0 0 0 3-2.4l1-5A2 2 0 0 0 18 8h-4l1-3a2 2 0 0 0-3.7-1.5L7 10"
+      />
+    </svg>
+  );
+}
+
+function ThumbDownIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M7 14V4H4v10h3ZM7 6h9a3 3 0 0 1 3 2.4l1 5A2 2 0 0 1 18 16h-4l1 3a2 2 0 0 1-3.7 1.5L7 14"
+      />
+    </svg>
+  );
+}
+
+function QuestionIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-5 w-5"
+      aria-hidden="true"
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+      />
+
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9.7 9a2.5 2.5 0 1 1 4 2c-1 .7-1.7 1.1-1.7 2.2"
+      />
+
+      <path
+        strokeLinecap="round"
+        d="M12 16.5h.01"
+      />
+    </svg>
   );
 }

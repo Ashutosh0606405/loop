@@ -2,8 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
+import {
+  useTheme,
+  type ThemePreference,
+} from "./Providers";
+
+import CommandPalette from "./CommandPalette";
+import NotificationCenter from "./NotificationCenter";
+import ProductTour from "./ProductTour";
 import ProfileMenu from "./ProfileMenu";
 
 type LoopShellProps = {
@@ -45,6 +58,28 @@ const navigationItems: NavigationItem[] = [
     name: "Reports",
     href: "/reports",
     icon: "reports",
+  },
+];
+
+const themeOptions: {
+  value: ThemePreference;
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: "light",
+    label: "Light Mode",
+    description: "Use the bright appearance",
+  },
+  {
+    value: "dark",
+    label: "Dark Mode",
+    description: "Use the dark appearance",
+  },
+  {
+    value: "system",
+    label: "System Default",
+    description: "Follow your device theme",
   },
 ];
 
@@ -182,6 +217,126 @@ function NavigationIcon({
   );
 }
 
+function ThemeIcon({
+  theme,
+  className = "h-5 w-5",
+}: {
+  theme: ThemePreference;
+  className?: string;
+}) {
+  if (theme === "light") {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        className={className}
+        aria-hidden="true"
+      >
+        <circle cx="12" cy="12" r="4" />
+
+        <path
+          strokeLinecap="round"
+          d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"
+        />
+      </svg>
+    );
+  }
+
+  if (theme === "dark") {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        className={className}
+        aria-hidden="true"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M21 15.5A9 9 0 0 1 8.5 3a9.5 9.5 0 1 0 12.5 12.5Z"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className={className}
+      aria-hidden="true"
+    >
+      <rect
+        x="3"
+        y="4"
+        width="18"
+        height="14"
+        rx="2"
+      />
+
+      <path
+        strokeLinecap="round"
+        d="M8 22h8M12 18v4"
+      />
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="7" />
+
+      <path
+        strokeLinecap="round"
+        d="m16 16 4 4"
+      />
+    </svg>
+  );
+}
+
+function HelpIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-5 w-5"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9.5 9a2.7 2.7 0 1 1 4.4 2.1c-1 .8-1.9 1.2-1.9 2.4"
+      />
+
+      <circle
+        cx="12"
+        cy="17"
+        r=".8"
+        fill="currentColor"
+        stroke="none"
+      />
+    </svg>
+  );
+}
+
 function SidebarContent({
   pathname,
   closeSidebar,
@@ -224,7 +379,9 @@ function SidebarContent({
           {navigationItems.map((item) => {
             const isActive =
               pathname === item.href ||
-              pathname.startsWith(`${item.href}/`);
+              pathname.startsWith(
+                `${item.href}/`,
+              );
 
             return (
               <Link
@@ -244,7 +401,9 @@ function SidebarContent({
                       : "bg-white/5 text-slate-400 group-hover:bg-white/10 group-hover:text-white"
                   }`}
                 >
-                  <NavigationIcon name={item.icon} />
+                  <NavigationIcon
+                    name={item.icon}
+                  />
                 </span>
 
                 <span>{item.name}</span>
@@ -295,16 +454,135 @@ export default function LoopShell({
 }: LoopShellProps) {
   const pathname = usePathname();
 
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] =
-    useState(false);
+  const {
+    theme,
+    resolvedTheme,
+    mounted,
+    setTheme,
+  } = useTheme();
+
+  const [
+    isMobileSidebarOpen,
+    setIsMobileSidebarOpen,
+  ] = useState(false);
+
+  const [
+    isThemeMenuOpen,
+    setIsThemeMenuOpen,
+  ] = useState(false);
+
+  const themeMenuRef =
+    useRef<HTMLDivElement | null>(null);
 
   const pageDescription =
     description ??
     subtitle ??
     "Monitor customer feedback and insights.";
 
+  const themeLabel =
+    !mounted
+      ? "Theme"
+      : theme === "system"
+        ? `System · ${
+            resolvedTheme === "dark"
+              ? "Dark"
+              : "Light"
+          }`
+        : theme === "dark"
+          ? "Dark"
+          : "Light";
+
+  useEffect(() => {
+    function handleOutsideClick(
+      event: MouseEvent,
+    ) {
+      if (
+        themeMenuRef.current &&
+        !themeMenuRef.current.contains(
+          event.target as Node,
+        )
+      ) {
+        setIsThemeMenuOpen(false);
+      }
+    }
+
+    function handleEscape(
+      event: KeyboardEvent,
+    ) {
+      if (event.key === "Escape") {
+        setIsThemeMenuOpen(false);
+        setIsMobileSidebarOpen(false);
+      }
+    }
+
+    document.addEventListener(
+      "mousedown",
+      handleOutsideClick,
+    );
+
+    document.addEventListener(
+      "keydown",
+      handleEscape,
+    );
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        handleOutsideClick,
+      );
+
+      document.removeEventListener(
+        "keydown",
+        handleEscape,
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    setIsMobileSidebarOpen(false);
+    setIsThemeMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    document.body.style.overflow =
+      isMobileSidebarOpen ? "hidden" : "";
+
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isMobileSidebarOpen]);
+
+  function selectTheme(
+    selectedTheme: ThemePreference,
+  ) {
+    setTheme(selectedTheme);
+    setIsThemeMenuOpen(false);
+  }
+
+  function openCommandPalette() {
+    setIsThemeMenuOpen(false);
+    setIsMobileSidebarOpen(false);
+
+    window.dispatchEvent(
+      new Event("loop-command-palette"),
+    );
+  }
+
+  function openProductTour() {
+    setIsThemeMenuOpen(false);
+    setIsMobileSidebarOpen(false);
+
+    window.dispatchEvent(
+      new Event("loop-product-tour"),
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900">
+    <div className="min-h-screen bg-slate-100 text-slate-900 transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100">
+      {/* Global Components */}
+      <CommandPalette />
+      <ProductTour />
+
       {/* Desktop Sidebar */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col overflow-hidden bg-slate-950 lg:flex">
         <div className="absolute -left-20 top-28 h-56 w-56 rounded-full bg-blue-600/15 blur-3xl" />
@@ -312,7 +590,9 @@ export default function LoopShell({
         <div className="absolute -bottom-20 right-0 h-64 w-64 rounded-full bg-violet-600/15 blur-3xl" />
 
         <div className="relative z-10 flex min-h-screen flex-col">
-          <SidebarContent pathname={pathname} />
+          <SidebarContent
+            pathname={pathname}
+          />
         </div>
       </aside>
 
@@ -377,8 +657,8 @@ export default function LoopShell({
       {/* Main Area */}
       <div className="min-h-screen lg:pl-72">
         {/* Header */}
-        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-xl">
-          <div className="flex min-h-[84px] items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-xl transition-colors dark:border-slate-800 dark:bg-slate-900/95">
+          <div className="flex min-h-[84px] items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
             {/* Header Left */}
             <div className="flex min-w-0 items-center gap-4">
               {/* Mobile Menu */}
@@ -388,7 +668,7 @@ export default function LoopShell({
                   setIsMobileSidebarOpen(true)
                 }
                 aria-label="Open navigation menu"
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 lg:hidden"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 lg:hidden"
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -408,82 +688,177 @@ export default function LoopShell({
 
               {/* Page Heading */}
               <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-600">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">
                   Project LOOP
                 </p>
 
-                <h1 className="mt-1 truncate text-xl font-bold text-slate-950 sm:text-2xl">
+                <h1 className="mt-1 truncate text-xl font-bold text-slate-950 dark:text-white sm:text-2xl">
                   {title}
                 </h1>
 
-                <p className="mt-1 hidden truncate text-sm text-slate-500 sm:block">
+                <p className="mt-1 hidden truncate text-sm text-slate-500 dark:text-slate-400 sm:block">
                   {pageDescription}
                 </p>
               </div>
             </div>
 
             {/* Header Right */}
-            <div className="flex shrink-0 items-center gap-3">
-              {/* Search */}
-              <div className="hidden items-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 xl:flex">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  className="mr-2 h-4 w-4 text-slate-400"
-                  aria-hidden="true"
-                >
-                  <circle
-                    cx="11"
-                    cy="11"
-                    r="7"
-                  />
-
-                  <path
-                    strokeLinecap="round"
-                    d="m16 16 4 4"
-                  />
-                </svg>
-
-                <input
-                  type="text"
-                  placeholder="Search insights..."
-                  className="w-36 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
-                />
-              </div>
-
-              {/* Notification */}
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+              {/* Command Search */}
               <button
                 type="button"
-                aria-label="Notifications"
-                className="relative hidden h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 sm:flex"
+                onClick={openCommandPalette}
+                aria-label="Open command palette"
+                className="hidden items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-left transition hover:border-blue-200 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 xl:flex"
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  className="h-5 w-5"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z"
-                  />
+                <span className="text-slate-400">
+                  <SearchIcon />
+                </span>
 
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M10 21h4"
-                  />
-                </svg>
+                <span className="w-28 text-sm text-slate-400">
+                  Search LOOP...
+                </span>
 
-                <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" />
+                <span className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-400 dark:border-slate-600 dark:bg-slate-900">
+                  Ctrl K
+                </span>
               </button>
 
-              {/* Profile Dropdown */}
+              {/* Small Screen Search */}
+              <button
+                type="button"
+                onClick={openCommandPalette}
+                aria-label="Open command palette"
+                className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 xl:hidden"
+              >
+                <SearchIcon />
+              </button>
+
+              {/* Product Tour Help Button */}
+              <button
+                type="button"
+                onClick={openProductTour}
+                aria-label="Start product tour"
+                title="Start product tour"
+                className="hidden h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 sm:flex"
+              >
+                <HelpIcon />
+              </button>
+
+              {/* Theme Selector */}
+              <div
+                ref={themeMenuRef}
+                className="relative"
+              >
+                <button
+                  type="button"
+                  aria-label="Change appearance"
+                  aria-haspopup="menu"
+                  aria-expanded={
+                    isThemeMenuOpen
+                  }
+                  onClick={() =>
+                    setIsThemeMenuOpen(
+                      (previous) => !previous,
+                    )
+                  }
+                  className="flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-slate-600 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                >
+                  <ThemeIcon
+                    theme={
+                      mounted
+                        ? theme
+                        : "system"
+                    }
+                  />
+
+                  <span className="hidden text-xs font-bold 2xl:block">
+                    {themeLabel}
+                  </span>
+                </button>
+
+                {isThemeMenuOpen && (
+                  <div
+                    role="menu"
+                    className="absolute right-0 top-14 z-[100] w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+                  >
+                    <div className="border-b border-slate-100 px-3 pb-3 pt-2 dark:border-slate-800">
+                      <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                        Appearance
+                      </p>
+
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        Select your preferred theme.
+                      </p>
+                    </div>
+
+                    <div className="mt-2 space-y-1">
+                      {themeOptions.map(
+                        (option) => {
+                          const selected =
+                            theme ===
+                            option.value;
+
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              role="menuitem"
+                              onClick={() =>
+                                selectTheme(
+                                  option.value,
+                                )
+                              }
+                              className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition ${
+                                selected
+                                  ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                                  : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                              }`}
+                            >
+                              <span
+                                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                                  selected
+                                    ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
+                                    : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                                }`}
+                              >
+                                <ThemeIcon
+                                  theme={
+                                    option.value
+                                  }
+                                />
+                              </span>
+
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-sm font-bold">
+                                  {option.label}
+                                </span>
+
+                                <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
+                                  {
+                                    option.description
+                                  }
+                                </span>
+                              </span>
+
+                              {selected && (
+                                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
+                                  ✓
+                                </span>
+                              )}
+                            </button>
+                          );
+                        },
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Notification Centre */}
+              <NotificationCenter />
+
+              {/* Profile Menu */}
               <ProfileMenu />
             </div>
           </div>

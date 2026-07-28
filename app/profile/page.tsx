@@ -1,6 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Image from "next/image";
+import {
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
+
 import LoopShell from "../../components/LoopShell";
 
 type ProfileData = {
@@ -30,12 +37,41 @@ const skills = [
   "Frontend Development",
 ];
 
+const maximumPhotoSize = 2 * 1024 * 1024;
+
 export default function ProfilePage() {
+  const fileInputRef =
+    useRef<HTMLInputElement>(null);
+
   const [profile, setProfile] =
     useState<ProfileData>(initialProfile);
 
   const [draftProfile, setDraftProfile] =
     useState<ProfileData>(initialProfile);
+
+  const [profileImage, setProfileImage] =
+    useState<string | null>(null);
+
+  const [
+    draftProfileImage,
+    setDraftProfileImage,
+  ] = useState<string | null>(null);
+
+  const [
+    hasPendingPhotoChange,
+    setHasPendingPhotoChange,
+  ] = useState(false);
+
+  const [
+    selectedPhotoName,
+    setSelectedPhotoName,
+  ] = useState("");
+
+  const [photoError, setPhotoError] =
+    useState("");
+
+  const [photoMessage, setPhotoMessage] =
+    useState("");
 
   const [isEditing, setIsEditing] =
     useState(false);
@@ -43,16 +79,173 @@ export default function ProfilePage() {
   const [savedMessage, setSavedMessage] =
     useState("");
 
+  const profileInitials = useMemo(() => {
+    const initials = profile.fullName
+      .split(" ")
+      .filter(Boolean)
+      .map((word) => word.charAt(0))
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
+
+    return initials || "LP";
+  }, [profile.fullName]);
+
+  const visibleProfileImage =
+    hasPendingPhotoChange
+      ? draftProfileImage
+      : profileImage;
+
   const profileCompletion = useMemo(() => {
     const values = Object.values(profile);
+
     const completedValues = values.filter(
       (value) => value.trim().length > 0,
     );
 
+    const totalFields = values.length + 1;
+
+    const completedFields =
+      completedValues.length +
+      (profileImage ? 1 : 0);
+
     return Math.round(
-      (completedValues.length / values.length) * 100,
+      (completedFields / totalFields) * 100,
     );
-  }, [profile]);
+  }, [profile, profileImage]);
+
+  function clearPhotoMessages() {
+    setPhotoError("");
+    setPhotoMessage("");
+  }
+
+  function showPhotoSuccess(message: string) {
+    setPhotoError("");
+    setPhotoMessage(message);
+
+    window.setTimeout(() => {
+      setPhotoMessage("");
+    }, 3000);
+  }
+
+  function openPhotoPicker() {
+    clearPhotoMessages();
+
+    fileInputRef.current?.click();
+  }
+
+  function handlePhotoSelection(
+    event: ChangeEvent<HTMLInputElement>,
+  ) {
+    const file = event.target.files?.[0];
+
+    clearPhotoMessages();
+
+    if (!file) {
+      return;
+    }
+
+    const supportedTypes = [
+      "image/jpeg",
+      "image/png",
+    ];
+
+    if (!supportedTypes.includes(file.type)) {
+      setPhotoError(
+        "Only JPG and PNG images are allowed.",
+      );
+
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > maximumPhotoSize) {
+      setPhotoError(
+        "Profile photo must be smaller than 2 MB.",
+      );
+
+      event.target.value = "";
+      return;
+    }
+
+    const fileReader = new FileReader();
+
+    fileReader.onload = () => {
+      if (
+        typeof fileReader.result !== "string"
+      ) {
+        setPhotoError(
+          "Unable to preview the selected photo.",
+        );
+        return;
+      }
+
+      setDraftProfileImage(
+        fileReader.result,
+      );
+
+      setSelectedPhotoName(file.name);
+      setHasPendingPhotoChange(true);
+
+      setPhotoMessage(
+        "Photo preview is ready. Click Save Photo to confirm.",
+      );
+    };
+
+    fileReader.onerror = () => {
+      setPhotoError(
+        "Unable to read the selected photo.",
+      );
+    };
+
+    fileReader.readAsDataURL(file);
+
+    event.target.value = "";
+  }
+
+  function handleSavePhoto() {
+    setProfileImage(draftProfileImage);
+    setHasPendingPhotoChange(false);
+    setSelectedPhotoName("");
+
+    if (draftProfileImage) {
+      showPhotoSuccess(
+        "Profile photo updated successfully.",
+      );
+    } else {
+      showPhotoSuccess(
+        "Profile photo removed successfully.",
+      );
+    }
+  }
+
+  function handleCancelPhoto() {
+    setDraftProfileImage(profileImage);
+    setHasPendingPhotoChange(false);
+    setSelectedPhotoName("");
+    clearPhotoMessages();
+  }
+
+  function handleRemovePhoto() {
+    clearPhotoMessages();
+
+    setDraftProfileImage(null);
+    setSelectedPhotoName("");
+
+    if (profileImage) {
+      setHasPendingPhotoChange(true);
+
+      setPhotoMessage(
+        "Photo will be removed after you click Save Photo.",
+      );
+    } else {
+      setHasPendingPhotoChange(false);
+
+      setPhotoMessage(
+        "Selected photo removed.",
+      );
+    }
+  }
 
   function handleEditProfile() {
     setDraftProfile(profile);
@@ -67,8 +260,19 @@ export default function ProfilePage() {
   }
 
   function handleSaveProfile() {
+    if (
+      !draftProfile.fullName.trim() ||
+      !draftProfile.email.trim()
+    ) {
+      setSavedMessage(
+        "Full name and email address are required.",
+      );
+      return;
+    }
+
     setProfile(draftProfile);
     setIsEditing(false);
+
     setSavedMessage(
       "Profile details updated successfully.",
     );
@@ -101,6 +305,8 @@ export default function ProfilePage() {
 
             <div className="absolute -right-12 bottom-0 h-56 w-56 rounded-full bg-fuchsia-400/20 blur-3xl" />
 
+            <div className="absolute left-1/2 top-1/2 h-36 w-36 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/10" />
+
             <div className="absolute right-8 top-8 hidden rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-white backdrop-blur sm:block">
               <p className="text-xs font-semibold uppercase tracking-widest text-blue-100">
                 Workspace
@@ -115,10 +321,66 @@ export default function ProfilePage() {
           <div className="relative px-6 pb-7 sm:px-8">
             <div className="-mt-14 flex flex-col gap-5 sm:-mt-16 sm:flex-row sm:items-end sm:justify-between">
               <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-end">
-                <div className="flex h-28 w-28 items-center justify-center rounded-3xl border-4 border-white bg-gradient-to-br from-blue-600 to-violet-600 text-4xl font-black text-white shadow-xl sm:h-32 sm:w-32">
-                  LP
+                {/* Profile Photo */}
+                <div className="group relative">
+                  <div className="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-3xl border-4 border-white bg-gradient-to-br from-blue-600 to-violet-600 text-4xl font-black text-white shadow-xl sm:h-32 sm:w-32">
+                    {visibleProfileImage ? (
+                      <Image
+                        src={visibleProfileImage}
+                        alt={`${profile.fullName} profile`}
+                        fill
+                        unoptimized
+                        sizes="128px"
+                        className="object-cover"
+                      />
+                    ) : (
+                      <span>{profileInitials}</span>
+                    )}
+
+                    <div className="absolute inset-0 bg-slate-950/0 transition group-hover:bg-slate-950/25" />
+                  </div>
+
+                  {/* Camera Button */}
+                  <button
+                    type="button"
+                    onClick={openPhotoPicker}
+                    aria-label="Upload profile photo"
+                    className="absolute -bottom-2 -right-2 flex h-11 w-11 items-center justify-center rounded-2xl border-4 border-white bg-slate-950 text-white shadow-lg transition hover:scale-105 hover:bg-blue-600"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      className="h-5 w-5"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M4 8.5h3l1.5-2h7l1.5 2h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Z"
+                      />
+
+                      <circle
+                        cx="12"
+                        cy="14"
+                        r="3.5"
+                      />
+                    </svg>
+                  </button>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    onChange={
+                      handlePhotoSelection
+                    }
+                    className="hidden"
+                  />
                 </div>
 
+                {/* User Details */}
                 <div className="pb-1 text-center sm:text-left">
                   <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                     <h2 className="text-2xl font-bold text-slate-950 sm:text-3xl">
@@ -141,6 +403,7 @@ export default function ProfilePage() {
                       stroke="currentColor"
                       strokeWidth="1.8"
                       className="h-4 w-4"
+                      aria-hidden="true"
                     >
                       <path
                         strokeLinecap="round"
@@ -157,6 +420,14 @@ export default function ProfilePage() {
 
                     {profile.location}
                   </p>
+
+                  <button
+                    type="button"
+                    onClick={openPhotoPicker}
+                    className="mt-3 text-sm font-bold text-blue-700 transition hover:text-violet-700 sm:hidden"
+                  >
+                    Change profile photo
+                  </button>
                 </div>
               </div>
 
@@ -164,7 +435,7 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={handleEditProfile}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-slate-800"
                 >
                   <svg
                     viewBox="0 0 24 24"
@@ -172,6 +443,7 @@ export default function ProfilePage() {
                     stroke="currentColor"
                     strokeWidth="1.8"
                     className="h-5 w-5"
+                    aria-hidden="true"
                   >
                     <path
                       strokeLinecap="round"
@@ -187,10 +459,141 @@ export default function ProfilePage() {
           </div>
         </section>
 
-        {savedMessage && (
-          <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100">
+        {/* Profile Photo Management */}
+        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="grid gap-6 p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-50 to-violet-100 text-blue-700">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  className="h-6 w-6"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4 8.5h3l1.5-2h7l1.5 2h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Z"
+                  />
+
+                  <circle
+                    cx="12"
+                    cy="14"
+                    r="3.5"
+                  />
+                </svg>
+              </span>
+
+              <div>
+                <h3 className="text-lg font-bold text-slate-950">
+                  Profile Picture
+                </h3>
+
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  Upload a clear JPG or PNG image.
+                  Maximum file size is 2 MB.
+                </p>
+
+                {selectedPhotoName && (
+                  <p className="mt-2 max-w-md truncate text-xs font-semibold text-blue-700">
+                    Selected: {selectedPhotoName}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={openPhotoPicker}
+                className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-3 text-sm font-bold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
+              >
+                {visibleProfileImage
+                  ? "Change Photo"
+                  : "Upload Photo"}
+              </button>
+
+              {visibleProfileImage && (
+                <button
+                  type="button"
+                  onClick={handleRemovePhoto}
+                  className="rounded-xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-bold text-rose-600 transition hover:border-rose-300 hover:bg-rose-100"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          </div>
+
+          {hasPendingPhotoChange && (
+            <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+              <p className="text-sm font-semibold text-slate-600">
+                You have an unsaved profile photo
+                change.
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleCancelPhoto}
+                  className="flex-1 rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-100 sm:flex-none"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSavePhoto}
+                  className="flex-1 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 sm:flex-none"
+                >
+                  Save Photo
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* Photo Error */}
+        {photoError && (
+          <div className="flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-rose-100">
+              !
+            </span>
+
+            {photoError}
+          </div>
+        )}
+
+        {/* Photo Success */}
+        {photoMessage && (
+          <div className="flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm font-semibold text-blue-800">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100">
               ✓
+            </span>
+
+            {photoMessage}
+          </div>
+        )}
+
+        {/* Profile Save Message */}
+        {savedMessage && (
+          <div
+            className={`flex items-center gap-3 rounded-2xl border p-4 text-sm font-semibold ${
+              savedMessage.includes(
+                "successfully",
+              )
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : "border-rose-200 bg-rose-50 text-rose-800"
+            }`}
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/60">
+              {savedMessage.includes(
+                "successfully",
+              )
+                ? "✓"
+                : "!"}
             </span>
 
             {savedMessage}
@@ -208,6 +611,7 @@ export default function ProfilePage() {
                   stroke="currentColor"
                   strokeWidth="1.8"
                   className="h-6 w-6"
+                  aria-hidden="true"
                 >
                   <circle
                     cx="12"
@@ -232,9 +636,14 @@ export default function ProfilePage() {
               Profile completion
             </h3>
 
+            <p className="mt-1 text-xs text-slate-500">
+              Add a profile picture to complete your
+              profile.
+            </p>
+
             <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-blue-600 to-violet-600"
+                className="h-full rounded-full bg-gradient-to-r from-blue-600 to-violet-600 transition-all duration-500"
                 style={{
                   width: `${profileCompletion}%`,
                 }}
@@ -250,6 +659,7 @@ export default function ProfilePage() {
                 stroke="currentColor"
                 strokeWidth="1.8"
                 className="h-6 w-6"
+                aria-hidden="true"
               >
                 <path
                   strokeLinecap="round"
@@ -259,6 +669,7 @@ export default function ProfilePage() {
 
                 <path
                   strokeLinecap="round"
+                  strokeLinejoin="round"
                   d="M4 12h16"
                 />
               </svg>
@@ -281,6 +692,7 @@ export default function ProfilePage() {
                 stroke="currentColor"
                 strokeWidth="1.8"
                 className="h-6 w-6"
+                aria-hidden="true"
               >
                 <path
                   strokeLinecap="round"
@@ -303,7 +715,7 @@ export default function ProfilePage() {
         <section className="grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
           {/* Personal Information */}
           <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4">
               <div>
                 <h3 className="text-xl font-bold text-slate-950">
                   Personal Information
@@ -315,7 +727,7 @@ export default function ProfilePage() {
                 </p>
               </div>
 
-              <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+              <span className="shrink-0 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
                 Personal
               </span>
             </div>
@@ -349,6 +761,7 @@ export default function ProfilePage() {
 
                 <ProfileInput
                   label="Mobile number"
+                  type="tel"
                   value={draftProfile.mobile}
                   onChange={(value) =>
                     updateDraft("mobile", value)
@@ -476,6 +889,12 @@ export default function ProfilePage() {
                 AI-powered customer feedback
                 intelligence platform.
               </p>
+
+              <div className="mt-5 flex items-center gap-2 text-xs font-semibold text-emerald-300">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+
+                Active contributor
+              </div>
             </div>
           </article>
         </section>

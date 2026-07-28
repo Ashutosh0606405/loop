@@ -1,8 +1,24 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f1f5f9;
+  --foreground: #0f172a;
+  --surface: #ffffff;
+  --surface-muted: #f8fafc;
+  --border: #e2e8f0;
+
+  --font-geist-sans: Arial, Helvetica, sans-serif;
+  --font-geist-mono: "Courier New", Courier, monospace;
+}
+
+html.dark {
+  --background: #020617;
+  --foreground: #f8fafc;
+  --surface: #0f172a;
+  --surface-muted: #1e293b;
+  --border: #334155;
 }
 
 @theme inline {
@@ -12,15 +28,487 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: light;
+  scroll-behavior: smooth;
+}
+
+html.dark {
+  color-scheme: dark;
 }
 
 body {
+  min-height: 100vh;
+  margin: 0;
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  transition:
+    background-color 250ms ease,
+    color 250ms ease;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: #bfdbfe;
+  color: #172554;
+}
+
+html.dark ::selection {
+  background: #1d4ed8;
+  color: #ffffff;
+}
+
+/* Scrollbar */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 transparent;
+}
+
+html.dark * {
+  scrollbar-color: #475569 transparent;
+}
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 999px;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+/*
+  Dark-mode compatibility layer.
+
+  Existing pages mostly use light Tailwind classes such as:
+  bg-white, bg-slate-50, text-slate-950 and border-slate-200.
+
+  These overrides make those existing pages dark-mode compatible
+  without changing every page separately.
+*/
+
+/* Main surfaces */
+
+html.dark .bg-white {
+  background-color: #0f172a !important;
+}
+
+html.dark .bg-white\/95 {
+  background-color: rgb(15 23 42 / 0.95) !important;
+}
+
+html.dark .bg-slate-50 {
+  background-color: #111c2f !important;
+}
+
+html.dark .bg-slate-100 {
+  background-color: #1e293b !important;
+}
+
+html.dark .bg-slate-200 {
+  background-color: #334155 !important;
+}
+
+/* Blue surfaces */
+
+html.dark .bg-blue-50 {
+  background-color: #172554 !important;
+}
+
+html.dark .bg-blue-100 {
+  background-color: #1e3a8a !important;
+}
+
+html.dark .bg-blue-200 {
+  background-color: #1d4ed8 !important;
+}
+
+/* Indigo and violet surfaces */
+
+html.dark .bg-indigo-50 {
+  background-color: #1e1b4b !important;
+}
+
+html.dark .bg-indigo-100 {
+  background-color: #312e81 !important;
+}
+
+html.dark .bg-violet-50 {
+  background-color: #2e1065 !important;
+}
+
+html.dark .bg-violet-100 {
+  background-color: #4c1d95 !important;
+}
+
+/* Emerald, teal and cyan surfaces */
+
+html.dark .bg-emerald-50 {
+  background-color: #022c22 !important;
+}
+
+html.dark .bg-emerald-100 {
+  background-color: #064e3b !important;
+}
+
+html.dark .bg-teal-50 {
+  background-color: #042f2e !important;
+}
+
+html.dark .bg-teal-100 {
+  background-color: #134e4a !important;
+}
+
+html.dark .bg-cyan-50 {
+  background-color: #083344 !important;
+}
+
+html.dark .bg-cyan-100 {
+  background-color: #164e63 !important;
+}
+
+/* Warning and error surfaces */
+
+html.dark .bg-amber-50 {
+  background-color: #451a03 !important;
+}
+
+html.dark .bg-amber-100 {
+  background-color: #78350f !important;
+}
+
+html.dark .bg-yellow-50 {
+  background-color: #422006 !important;
+}
+
+html.dark .bg-rose-50 {
+  background-color: #4c0519 !important;
+}
+
+html.dark .bg-rose-100 {
+  background-color: #881337 !important;
+}
+
+html.dark .bg-orange-50 {
+  background-color: #431407 !important;
+}
+
+html.dark .bg-fuchsia-50 {
+  background-color: #4a044e !important;
+}
+
+/* Main text */
+
+html.dark .text-slate-950,
+html.dark .text-slate-900,
+html.dark .text-slate-800 {
+  color: #f8fafc !important;
+}
+
+html.dark .text-slate-700 {
+  color: #e2e8f0 !important;
+}
+
+html.dark .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+
+html.dark .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+html.dark .text-slate-400 {
+  color: #64748b !important;
+}
+
+html.dark .placeholder\:text-slate-400::placeholder {
+  color: #64748b !important;
+}
+
+/* Coloured text */
+
+html.dark .text-blue-600,
+html.dark .text-blue-700,
+html.dark .text-blue-800 {
+  color: #93c5fd !important;
+}
+
+html.dark .text-indigo-600,
+html.dark .text-indigo-700 {
+  color: #a5b4fc !important;
+}
+
+html.dark .text-violet-600,
+html.dark .text-violet-700,
+html.dark .text-violet-800 {
+  color: #c4b5fd !important;
+}
+
+html.dark .text-emerald-600,
+html.dark .text-emerald-700,
+html.dark .text-emerald-800,
+html.dark .text-emerald-900 {
+  color: #6ee7b7 !important;
+}
+
+html.dark .text-teal-600,
+html.dark .text-teal-700 {
+  color: #5eead4 !important;
+}
+
+html.dark .text-cyan-600,
+html.dark .text-cyan-700 {
+  color: #67e8f9 !important;
+}
+
+html.dark .text-amber-600,
+html.dark .text-amber-700,
+html.dark .text-amber-800,
+html.dark .text-amber-900 {
+  color: #fcd34d !important;
+}
+
+html.dark .text-rose-600,
+html.dark .text-rose-700,
+html.dark .text-rose-800 {
+  color: #fda4af !important;
+}
+
+/* Borders */
+
+html.dark .border-slate-100,
+html.dark .border-slate-200,
+html.dark .border-slate-300 {
+  border-color: #334155 !important;
+}
+
+html.dark .border-blue-100,
+html.dark .border-blue-200,
+html.dark .border-blue-300 {
+  border-color: #1e40af !important;
+}
+
+html.dark .border-violet-100,
+html.dark .border-violet-200,
+html.dark .border-violet-300 {
+  border-color: #5b21b6 !important;
+}
+
+html.dark .border-emerald-100,
+html.dark .border-emerald-200,
+html.dark .border-emerald-300 {
+  border-color: #065f46 !important;
+}
+
+html.dark .border-amber-100,
+html.dark .border-amber-200,
+html.dark .border-amber-300 {
+  border-color: #92400e !important;
+}
+
+html.dark .border-rose-100,
+html.dark .border-rose-200,
+html.dark .border-rose-300 {
+  border-color: #9f1239 !important;
+}
+
+/* Light gradients converted for dark mode */
+
+html.dark .from-blue-50 {
+  --tw-gradient-from:
+    #172554 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to:
+    rgb(23 37 84 / 0)
+    var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops:
+    var(--tw-gradient-from),
+    var(--tw-gradient-to);
+}
+
+html.dark .from-indigo-50 {
+  --tw-gradient-from:
+    #1e1b4b var(--tw-gradient-from-position) !important;
+  --tw-gradient-to:
+    rgb(30 27 75 / 0)
+    var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops:
+    var(--tw-gradient-from),
+    var(--tw-gradient-to);
+}
+
+html.dark .from-violet-50 {
+  --tw-gradient-from:
+    #2e1065 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to:
+    rgb(46 16 101 / 0)
+    var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops:
+    var(--tw-gradient-from),
+    var(--tw-gradient-to);
+}
+
+html.dark .from-emerald-50 {
+  --tw-gradient-from:
+    #022c22 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to:
+    rgb(2 44 34 / 0)
+    var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops:
+    var(--tw-gradient-from),
+    var(--tw-gradient-to);
+}
+
+html.dark .from-amber-50 {
+  --tw-gradient-from:
+    #451a03 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to:
+    rgb(69 26 3 / 0)
+    var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops:
+    var(--tw-gradient-from),
+    var(--tw-gradient-to);
+}
+
+html.dark .from-rose-50 {
+  --tw-gradient-from:
+    #4c0519 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to:
+    rgb(76 5 25 / 0)
+    var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops:
+    var(--tw-gradient-from),
+    var(--tw-gradient-to);
+}
+
+html.dark .via-blue-50 {
+  --tw-gradient-via:
+    #172554 var(--tw-gradient-via-position) !important;
+  --tw-gradient-to:
+    rgb(23 37 84 / 0)
+    var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops:
+    var(--tw-gradient-from),
+    var(--tw-gradient-via),
+    var(--tw-gradient-to);
+}
+
+html.dark .via-indigo-50 {
+  --tw-gradient-via:
+    #1e1b4b var(--tw-gradient-via-position) !important;
+  --tw-gradient-to:
+    rgb(30 27 75 / 0)
+    var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops:
+    var(--tw-gradient-from),
+    var(--tw-gradient-via),
+    var(--tw-gradient-to);
+}
+
+html.dark .via-fuchsia-50 {
+  --tw-gradient-via:
+    #4a044e var(--tw-gradient-via-position) !important;
+  --tw-gradient-to:
+    rgb(74 4 78 / 0)
+    var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops:
+    var(--tw-gradient-from),
+    var(--tw-gradient-via),
+    var(--tw-gradient-to);
+}
+
+html.dark .via-teal-50 {
+  --tw-gradient-via:
+    #042f2e var(--tw-gradient-via-position) !important;
+  --tw-gradient-to:
+    rgb(4 47 46 / 0)
+    var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops:
+    var(--tw-gradient-from),
+    var(--tw-gradient-via),
+    var(--tw-gradient-to);
+}
+
+html.dark .to-blue-50 {
+  --tw-gradient-to:
+    #172554 var(--tw-gradient-to-position) !important;
+}
+
+html.dark .to-indigo-50 {
+  --tw-gradient-to:
+    #1e1b4b var(--tw-gradient-to-position) !important;
+}
+
+html.dark .to-violet-50 {
+  --tw-gradient-to:
+    #2e1065 var(--tw-gradient-to-position) !important;
+}
+
+html.dark .to-teal-50 {
+  --tw-gradient-to:
+    #042f2e var(--tw-gradient-to-position) !important;
+}
+
+html.dark .to-cyan-50 {
+  --tw-gradient-to:
+    #083344 var(--tw-gradient-to-position) !important;
+}
+
+html.dark .to-yellow-50 {
+  --tw-gradient-to:
+    #422006 var(--tw-gradient-to-position) !important;
+}
+
+html.dark .to-orange-50 {
+  --tw-gradient-to:
+    #431407 var(--tw-gradient-to-position) !important;
+}
+
+html.dark .to-rose-50 {
+  --tw-gradient-to:
+    #4c0519 var(--tw-gradient-to-position) !important;
+}
+
+/* Forms */
+
+html.dark input,
+html.dark textarea,
+html.dark select {
+  color-scheme: dark;
+}
+
+html.dark input:disabled,
+html.dark textarea:disabled,
+html.dark select:disabled {
+  color: #64748b;
+}
+
+/* Shadows */
+
+html.dark .shadow-sm,
+html.dark .shadow-md,
+html.dark .shadow-lg,
+html.dark .shadow-xl,
+html.dark .shadow-2xl {
+  --tw-shadow-color: rgb(0 0 0 / 0.45);
 }
