@@ -3,8 +3,9 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import "dotenv/config";
 
+// Always use DATABASE_URL (Supabase PgBouncer pooler, port 6543) first.
+// DIRECT_URL uses port 5432 which is blocked by Vercel serverless networks.
 const connectionString =
-  process.env.DIRECT_URL ||
   process.env.DATABASE_URL ||
   "postgresql://postgres.vqwnrsxtmifkykdxegyu:Loop%401615%401@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?pgbouncer=true";
 
