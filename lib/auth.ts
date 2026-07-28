@@ -103,6 +103,48 @@ export const authOptions: AuthOptions = {
                 workspaceId: workspace.id,
               },
             });
+
+            // Automatically populate the new workspace with starter sample feedback entries so dashboard metrics update immediately!
+            await db.feedback.createMany({
+              data: [
+                {
+                  content: "The dashboard analytics and auto-classification feature is incredible!",
+                  channel: "Web App",
+                  sentiment: "POSITIVE",
+                  sentimentScore: 0.95,
+                  status: "REVIEWED",
+                  customerName: "Alex Rivera",
+                  workspaceId: workspace.id,
+                },
+                {
+                  content: "Payment checkout was smooth, but confirmation email was delayed by a few minutes.",
+                  channel: "Support",
+                  sentiment: "NEUTRAL",
+                  sentimentScore: 0.1,
+                  status: "NEW",
+                  customerName: "Jordan Lee",
+                  workspaceId: workspace.id,
+                },
+                {
+                  content: "Experienced slight lag when loading large reporting exports on mobile browser.",
+                  channel: "Survey",
+                  sentiment: "NEGATIVE",
+                  sentimentScore: -0.7,
+                  status: "NEW",
+                  customerName: "Taylor Swift",
+                  workspaceId: workspace.id,
+                },
+                {
+                  content: "Customer support resolved my workspace configuration inquiry within minutes. Great team!",
+                  channel: "Email",
+                  sentiment: "POSITIVE",
+                  sentimentScore: 0.9,
+                  status: "ACTIONED",
+                  customerName: "Morgan Freeman",
+                  workspaceId: workspace.id,
+                },
+              ],
+            });
           }
 
           user.id = existingUser.id;
