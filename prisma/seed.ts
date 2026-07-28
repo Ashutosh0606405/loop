@@ -29,7 +29,7 @@ async function main() {
 
   const admin = await prisma.user.upsert({
     where: { email: "admin@acme.com" },
-    update: {},
+    update: { passwordHash },
     create: {
       name: "Ashutosh Soni (Lead)",
       email: "admin@acme.com",
@@ -41,7 +41,7 @@ async function main() {
 
   const analyst = await prisma.user.upsert({
     where: { email: "analyst@acme.com" },
-    update: {},
+    update: { passwordHash },
     create: {
       name: "Lakshmipriya D",
       email: "analyst@acme.com",
@@ -76,78 +76,80 @@ async function main() {
 
   console.log("✅ Created Themes");
 
-  // 4. Seed Feedback Data
-  const sampleFeedbacks = [
-    {
-      content: "The dashboard is intuitive and fast! Loved the clean visualization updates.",
-      channel: "App Review",
-      sentiment: "POSITIVE" as const,
-      sentimentScore: 0.9,
-      status: "REVIEWED" as const,
-      customerName: "Ananya Sharma",
-      themeId: "th-01",
-    },
-    {
-      content: "Payment was completed successfully, but receipt confirmation took over 5 minutes to arrive in email.",
-      channel: "Support Ticket",
-      sentiment: "NEUTRAL" as const,
-      sentimentScore: 0.1,
-      status: "NEW" as const,
-      customerName: "Rahul Kumar",
-      themeId: "th-03",
-    },
-    {
-      content: "The checkout page freezes when adding more than 3 items to cart on mobile web browser.",
-      channel: "Survey",
-      sentiment: "NEGATIVE" as const,
-      sentimentScore: -0.85,
-      status: "NEW" as const,
-      customerName: "Priya Singh",
-      themeId: "th-02",
-    },
-    {
-      content: "Customer support resolved my billing refund request within 10 minutes. Fantastic service!",
-      channel: "Social Media",
-      sentiment: "POSITIVE" as const,
-      sentimentScore: 0.95,
-      status: "ACTIONED" as const,
-      customerName: "Arjun Patel",
-      themeId: "th-04",
-    },
-    {
-      content: "Navigation menu button glitches occasionally on iOS Safari.",
-      channel: "Email",
-      sentiment: "NEGATIVE" as const,
-      sentimentScore: -0.5,
-      status: "NEW" as const,
-      customerName: "Vikram Malhotra",
-      themeId: "th-02",
-    },
-  ];
-
-  for (const fb of sampleFeedbacks) {
-    const feedback = await prisma.feedback.create({
-      data: {
-        content: fb.content,
-        channel: fb.channel,
-        sentiment: fb.sentiment,
-        sentimentScore: fb.sentimentScore,
-        status: fb.status,
-        customerName: fb.customerName,
-        workspaceId: workspace.id,
+  // 4. Seed Feedback Data if empty
+  const count = await prisma.feedback.count({ where: { workspaceId: workspace.id } });
+  if (count === 0) {
+    const sampleFeedbacks = [
+      {
+        content: "The dashboard is intuitive and fast! Loved the clean visualization updates.",
+        channel: "App Review",
+        sentiment: "POSITIVE" as const,
+        sentimentScore: 0.9,
+        status: "REVIEWED" as const,
+        customerName: "Ananya Sharma",
+        themeId: "th-01",
       },
-    });
-
-    await prisma.feedbackTheme.create({
-      data: {
-        feedbackId: feedback.id,
-        themeId: fb.themeId,
-        confidence: 0.95,
+      {
+        content: "Payment was completed successfully, but receipt confirmation took over 5 minutes to arrive in email.",
+        channel: "Support Ticket",
+        sentiment: "NEUTRAL" as const,
+        sentimentScore: 0.1,
+        status: "NEW" as const,
+        customerName: "Rahul Kumar",
+        themeId: "th-03",
       },
-    });
+      {
+        content: "The checkout page freezes when adding more than 3 items to cart on mobile web browser.",
+        channel: "Survey",
+        sentiment: "NEGATIVE" as const,
+        sentimentScore: -0.85,
+        status: "NEW" as const,
+        customerName: "Priya Singh",
+        themeId: "th-02",
+      },
+      {
+        content: "Customer support resolved my billing refund request within 10 minutes. Fantastic service!",
+        channel: "Social Media",
+        sentiment: "POSITIVE" as const,
+        sentimentScore: 0.95,
+        status: "ACTIONED" as const,
+        customerName: "Arjun Patel",
+        themeId: "th-04",
+      },
+      {
+        content: "Navigation menu button glitches occasionally on iOS Safari.",
+        channel: "Email",
+        sentiment: "NEGATIVE" as const,
+        sentimentScore: -0.5,
+        status: "NEW" as const,
+        customerName: "Vikram Malhotra",
+        themeId: "th-02",
+      },
+    ];
+
+    for (const fb of sampleFeedbacks) {
+      const feedback = await prisma.feedback.create({
+        data: {
+          content: fb.content,
+          channel: fb.channel,
+          sentiment: fb.sentiment,
+          sentimentScore: fb.sentimentScore,
+          status: fb.status,
+          customerName: fb.customerName,
+          workspaceId: workspace.id,
+        },
+      });
+
+      await prisma.feedbackTheme.create({
+        data: {
+          feedbackId: feedback.id,
+          themeId: fb.themeId,
+          confidence: 0.95,
+        },
+      });
+    }
   }
 
-  console.log(`✅ Seeded ${sampleFeedbacks.length} Feedback Records`);
   console.log("🎉 Database seeding completed successfully!");
 }
 
