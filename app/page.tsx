@@ -21,14 +21,34 @@ export default function HomePage() {
   const [regError, setRegError] = useState("");
   const [regSuccess, setRegSuccess] = useState("");
 
-  // Instant Unconditional Navigation to Dashboard
+  // Real Google OAuth Handler for Any User Worldwide
   const handleGoogleAuth = () => {
-    window.location.href = "/dashboard";
+    signIn("google", {
+      callbackUrl: "/dashboard",
+    });
   };
 
   // Quick Demo Login Presets
-  const handleDemoLogin = (email: string) => {
-    window.location.href = "/dashboard";
+  const handleDemoLogin = async (email: string) => {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = "password123";
+    setLoginEmail(cleanEmail);
+    setLoginPassword(cleanPassword);
+    setLoginLoading(true);
+    setLoginError("");
+
+    const res = await signIn("credentials", {
+      email: cleanEmail,
+      password: cleanPassword,
+      redirect: false,
+    });
+
+    setLoginLoading(false);
+    if (res?.ok) {
+      window.location.href = "/dashboard";
+    } else {
+      setLoginError("Failed to authenticate demo account.");
+    }
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -45,20 +65,16 @@ export default function HomePage() {
       return;
     }
 
-    try {
-      const res = await signIn("credentials", {
-        email: cleanEmail,
-        password: cleanPassword,
-        redirect: false,
-      });
+    const res = await signIn("credentials", {
+      email: cleanEmail,
+      password: cleanPassword,
+      redirect: false,
+    });
 
-      if (res?.ok) {
-        window.location.href = "/dashboard";
-      } else {
-        // Direct fallback to dashboard so user is never blocked
-        window.location.href = "/dashboard";
-      }
-    } catch (err) {
+    setLoginLoading(false);
+    if (res?.error || !res?.ok) {
+      setLoginError("Invalid email or password. Please verify credentials.");
+    } else {
       window.location.href = "/dashboard";
     }
   };
@@ -81,13 +97,31 @@ export default function HomePage() {
         }),
       });
 
-      if (res.ok) {
-        setRegSuccess("Account & Workspace created successfully! Signing you in...");
+      const data = await res.json();
+
+      if (!res.ok) {
+        setRegLoading(false);
+        setRegError(data.error || "Registration failed. Please check inputs.");
+        return;
       }
 
-      window.location.href = "/dashboard";
+      setRegSuccess("Account & Workspace created successfully! Signing you in...");
+
+      // Automatically sign in after registration
+      const signRes = await signIn("credentials", {
+        email: regEmail.trim().toLowerCase(),
+        password: regPassword.trim(),
+        redirect: false,
+      });
+
+      if (signRes?.ok) {
+        window.location.href = "/dashboard";
+      } else {
+        setRegLoading(false);
+      }
     } catch (err) {
-      window.location.href = "/dashboard";
+      setRegLoading(false);
+      setRegError("An unexpected error occurred during registration.");
     }
   };
 
