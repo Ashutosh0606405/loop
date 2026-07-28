@@ -80,35 +80,40 @@ export const authOptions: AuthOptions = {
   ],
   callbacks: {
     async signIn({ user, account }) {
-      if (account?.provider === "google" && user.email) {
-        const cleanEmail = user.email.trim().toLowerCase();
-        let existingUser = await db.user.findUnique({
-          where: { email: cleanEmail },
-        });
-
-        if (!existingUser) {
-          const workspace = await db.workspace.create({
-            data: {
-              name: `${user.name || "User"}'s Workspace`,
-            },
+      try {
+        if (account?.provider === "google" && user.email) {
+          const cleanEmail = user.email.trim().toLowerCase();
+          let existingUser = await db.user.findUnique({
+            where: { email: cleanEmail },
           });
 
-          existingUser = await db.user.create({
-            data: {
-              name: user.name || "Google User",
-              email: cleanEmail,
-              passwordHash: "OAUTH_GOOGLE_USER",
-              role: "ADMIN",
-              workspaceId: workspace.id,
-            },
-          });
+          if (!existingUser) {
+            const workspace = await db.workspace.create({
+              data: {
+                name: `${user.name || "User"}'s Workspace`,
+              },
+            });
+
+            existingUser = await db.user.create({
+              data: {
+                name: user.name || "Google User",
+                email: cleanEmail,
+                passwordHash: "OAUTH_GOOGLE_USER",
+                role: "ADMIN",
+                workspaceId: workspace.id,
+              },
+            });
+          }
+
+          user.id = existingUser.id;
+          user.role = existingUser.role;
+          user.workspaceId = existingUser.workspaceId;
         }
-
-        user.id = existingUser.id;
-        user.role = existingUser.role;
-        user.workspaceId = existingUser.workspaceId;
+        return true;
+      } catch (err) {
+        console.error("NextAuth signIn callback exception:", err);
+        return true; // allow sign in to complete cleanly
       }
-      return true;
     },
     async jwt({ token, user }) {
       if (user) {

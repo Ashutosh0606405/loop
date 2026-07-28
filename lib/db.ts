@@ -13,7 +13,17 @@ const globalForPrisma = globalThis as unknown as {
   pool: Pool | undefined;
 };
 
-const pool = globalForPrisma.pool ?? new Pool({ connectionString, max: 10, idleTimeoutMillis: 30000 });
+// Create a robust pg Pool with explicit SSL configuration for Vercel Serverless
+const pool =
+  globalForPrisma.pool ??
+  new Pool({
+    connectionString,
+    ssl: { rejectUnauthorized: false },
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+  });
+
 if (process.env.NODE_ENV !== "production") globalForPrisma.pool = pool;
 
 const adapter = new PrismaPg(pool);
