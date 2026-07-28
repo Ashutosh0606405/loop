@@ -23,30 +23,16 @@ export default function HomePage() {
   const [regError, setRegError] = useState("");
   const [regSuccess, setRegSuccess] = useState("");
 
-  // 100% Reliable Instant Google Authentication Handler (Zero 401 Error Page Guarantee)
+  // Instant Full-Page Session Navigation
   const handleGoogleAuth = async () => {
     setLoginLoading(true);
     setLoginError("");
 
-    try {
-      // Authenticate active Google Workspace Admin Session
-      const res = await signIn("credentials", {
-        email: "admin@acme.com",
-        password: "password123",
-        redirect: false,
-      });
-
-      setLoginLoading(false);
-      if (res?.ok) {
-        router.push("/dashboard");
-        router.refresh();
-      } else {
-        setLoginError("Failed to authenticate Google Workspace session.");
-      }
-    } catch (err) {
-      setLoginLoading(false);
-      setLoginError("An error occurred during Google Sign In.");
-    }
+    await signIn("credentials", {
+      email: "admin@acme.com",
+      password: "password123",
+      callbackUrl: "/dashboard",
+    });
   };
 
   // Quick Demo Login Presets
@@ -58,19 +44,11 @@ export default function HomePage() {
     setLoginLoading(true);
     setLoginError("");
 
-    const res = await signIn("credentials", {
+    await signIn("credentials", {
       email: cleanEmail,
       password: cleanPassword,
-      redirect: false,
+      callbackUrl: "/dashboard",
     });
-
-    setLoginLoading(false);
-    if (res?.ok) {
-      router.push("/dashboard");
-      router.refresh();
-    } else {
-      setLoginError("Failed to authenticate demo account.");
-    }
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -134,12 +112,8 @@ export default function HomePage() {
       await signIn("credentials", {
         email: regEmail.trim().toLowerCase(),
         password: regPassword.trim(),
-        redirect: false,
+        callbackUrl: "/dashboard",
       });
-
-      setRegLoading(false);
-      router.push("/dashboard");
-      router.refresh();
     } catch (err) {
       setRegLoading(false);
       setRegError("An unexpected error occurred during registration.");
