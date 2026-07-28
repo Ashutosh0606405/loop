@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 export default function HomePage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"login" | "register">("login");
 
   // Sign In Form State
@@ -21,21 +23,25 @@ export default function HomePage() {
   const [regError, setRegError] = useState("");
   const [regSuccess, setRegSuccess] = useState("");
 
-  // Google OAuth / Admin 1-Click Login Handler
+  // Instant Google / Demo OAuth Button Handler
   const handleGoogleAuth = async () => {
-    setLoginLoading(true);
-    setLoginError("");
     setLoginEmail("admin@acme.com");
     setLoginPassword("password123");
+    setLoginLoading(true);
+    setLoginError("");
 
     await signIn("credentials", {
       email: "admin@acme.com",
       password: "password123",
-      callbackUrl: "/dashboard",
+      redirect: false,
     });
+
+    setLoginLoading(false);
+    router.push("/dashboard");
+    router.refresh();
   };
 
-  // Quick Demo Login Presets (Direct Redirect)
+  // Quick Demo Login Presets (Direct Client Router Push)
   const handleDemoLogin = async (email: string) => {
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = "password123";
@@ -47,8 +53,12 @@ export default function HomePage() {
     await signIn("credentials", {
       email: cleanEmail,
       password: cleanPassword,
-      callbackUrl: "/dashboard",
+      redirect: false,
     });
+
+    setLoginLoading(false);
+    router.push("/dashboard");
+    router.refresh();
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -69,14 +79,14 @@ export default function HomePage() {
       email: cleanEmail,
       password: cleanPassword,
       redirect: false,
-      callbackUrl: "/dashboard",
     });
 
+    setLoginLoading(false);
     if (res?.error) {
-      setLoginLoading(false);
       setLoginError("Invalid email or password. Please verify credentials.");
-    } else if (res?.url) {
-      window.location.href = res.url;
+    } else {
+      router.push("/dashboard");
+      router.refresh();
     }
   };
 
@@ -112,8 +122,12 @@ export default function HomePage() {
       await signIn("credentials", {
         email: regEmail.trim().toLowerCase(),
         password: regPassword.trim(),
-        callbackUrl: "/dashboard",
+        redirect: false,
       });
+
+      setRegLoading(false);
+      router.push("/dashboard");
+      router.refresh();
     } catch (err) {
       setRegLoading(false);
       setRegError("An unexpected error occurred during registration.");

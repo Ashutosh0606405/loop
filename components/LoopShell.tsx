@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { useEffect, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 type LoopShellProps = {
   title: string;
@@ -40,14 +40,7 @@ export default function LoopShell({
   children,
 }: LoopShellProps) {
   const pathname = usePathname();
-  const router = useRouter();
-  const { data: session, status } = useSession();
-
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/");
-    }
-  }, [status, router]);
+  const { data: session } = useSession();
 
   const userName = session?.user?.name || "Ashutosh Soni";
   const userRole = (session?.user as any)?.role || "ADMIN";
@@ -57,17 +50,6 @@ export default function LoopShell({
     .join("")
     .substring(0, 2)
     .toUpperCase();
-
-  if (status === "loading") {
-    return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center font-medium">
-        <div className="flex items-center gap-3">
-          <div className="h-6 w-6 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
-          <span>Authenticating Session...</span>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
