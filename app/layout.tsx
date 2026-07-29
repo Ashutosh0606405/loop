@@ -1,55 +1,55 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
-import Providers from "@/components/Providers";
+import Providers from "../components/Providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title:
-    "Project LOOP | AI Customer-Feedback Intelligence Platform",
+  title: {
+    default: "Project LOOP",
+    template: "%s | Project LOOP",
+  },
   description:
-    "Multi-tenant AI Customer-Feedback Intelligence Platform",
+    "AI-powered customer feedback intelligence platform.",
 };
 
-const themeScript = `
+const themeInitializationScript = `
 (function () {
   try {
-    var storageKey = "loop-theme";
-    var savedTheme = localStorage.getItem(storageKey);
+    var savedTheme =
+      window.localStorage.getItem("loop-theme") ||
+      "system";
 
-    var theme =
-      savedTheme === "light" ||
+    var prefersDark = window.matchMedia(
+      "(prefers-color-scheme: dark)",
+    ).matches;
+
+    var shouldUseDark =
       savedTheme === "dark" ||
-      savedTheme === "system"
-        ? savedTheme
-        : "system";
+      (savedTheme === "system" &&
+        prefersDark);
 
-    var resolvedTheme =
-      theme === "system"
-        ? window.matchMedia("(prefers-color-scheme: dark)").matches
-          ? "dark"
-          : "light"
-        : theme;
-
-    var root = document.documentElement;
-
-    root.classList.toggle(
+    document.documentElement.classList.toggle(
       "dark",
-      resolvedTheme === "dark"
+      shouldUseDark,
     );
 
-    root.dataset.theme = resolvedTheme;
-    root.dataset.themePreference = theme;
-    root.style.colorScheme = resolvedTheme;
+    document.documentElement.style.colorScheme =
+      shouldUseDark ? "dark" : "light";
   } catch (error) {
-    console.error("Unable to load theme:", error);
+    document.documentElement.classList.remove(
+      "dark",
+    );
+
+    document.documentElement.style.colorScheme =
+      "light";
   }
 })();
 `;
 
-type RootLayoutProps = Readonly<{
+type RootLayoutProps = {
   children: ReactNode;
-}>;
+};
 
 export default function RootLayout({
   children,
@@ -57,18 +57,18 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className="h-full antialiased"
       suppressHydrationWarning
+      data-scroll-behavior="smooth"
     >
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: themeScript,
+            __html: themeInitializationScript,
           }}
         />
       </head>
 
-      <body className="flex min-h-full flex-col bg-slate-100 font-sans text-slate-900 transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100">
+      <body className="antialiased">
         <Providers>{children}</Providers>
       </body>
     </html>

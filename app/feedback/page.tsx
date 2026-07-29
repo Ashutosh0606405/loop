@@ -58,6 +58,134 @@ type AlertMessage = {
   message: string;
 };
 
+type FeedbackServiceError = {
+  kind:
+    | "unauthorized"
+    | "forbidden"
+    | "not-found"
+    | "server"
+    | "network"
+    | "unknown";
+  title: string;
+  message: string;
+  technicalMessage?: string;
+};
+
+type FeedbackListResponse = {
+  data?: FeedbackItem[];
+  meta?: {
+    totalPages?: number;
+    total?: number;
+  };
+  error?: string;
+};
+
+type FeedbackMutationResponse = {
+  count?: number;
+  error?: string;
+};
+
+async function readJsonSafely<T>(
+  response: Response,
+): Promise<T | null> {
+  const responseText = await response.text();
+
+  if (!responseText.trim()) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(responseText) as T;
+  } catch {
+    return null;
+  }
+}
+
+function getFeedbackServiceError(
+  status?: number,
+  technicalMessage?: string,
+): FeedbackServiceError {
+  if (status === 401) {
+    return {
+      kind: "unauthorized",
+      title: "Feedback workspace is not connected",
+      message:
+        "The frontend is ready, but the current login session does not contain a valid workspace context. Backend authentication setup is required to load live feedback.",
+      technicalMessage,
+    };
+  }
+
+  if (status === 403) {
+    return {
+      kind: "forbidden",
+      title: "Workspace access unavailable",
+      message:
+        "This account does not currently have permission to view feedback for the selected workspace.",
+      technicalMessage,
+    };
+  }
+
+  if (status === 404) {
+    return {
+      kind: "not-found",
+      title: "Feedback service not found",
+      message:
+        "The feedback API route is currently unavailable. The remaining frontend features can still be reviewed.",
+      technicalMessage,
+    };
+  }
+
+  if (status && status >= 500) {
+    return {
+      kind: "server",
+      title: "Feedback service temporarily unavailable",
+      message:
+        "The server could not load feedback at this time. Please retry after the backend service becomes available.",
+      technicalMessage,
+    };
+  }
+
+  if (!status) {
+    return {
+      kind: "network",
+      title: "Unable to connect to feedback service",
+      message:
+        "The application could not reach the feedback API. Check the development server and try again.",
+      technicalMessage,
+    };
+  }
+
+  return {
+    kind: "unknown",
+    title: "Unable to load feedback",
+    message:
+      "Feedback data is currently unavailable. Please try again later.",
+    technicalMessage,
+  };
+}
+
+function getFeedbackActionError(
+  status: number,
+  fallbackMessage?: string,
+) {
+  if (status === 401) {
+    return "This action is unavailable because the current workspace session is not connected. Backend authentication support is required.";
+  }
+
+  if (status === 403) {
+    return "You do not currently have permission to perform this action.";
+  }
+
+  if (status >= 500) {
+    return "The feedback service is temporarily unavailable. Please try again later.";
+  }
+
+  return (
+    fallbackMessage ||
+    "Unable to complete the feedback action."
+  );
+}
+
 const pageLimit = 15;
 const maximumCsvSize = 5 * 1024 * 1024;
 
@@ -162,7 +290,9 @@ export default function FeedbackPage() {
     useState(false);
 
   const [fetchError, setFetchError] =
-    useState("");
+    useState<FeedbackServiceError | null>(
+      null,
+    );
 
   const [search, setSearch] = useState("");
 
@@ -230,7 +360,7 @@ export default function FeedbackPage() {
         setLoading(true);
       }
 
-      setFetchError("");
+      setFetchError(null);
 
       try {
         const params = new URLSearchParams();
@@ -267,37 +397,48 @@ export default function FeedbackPage() {
           },
         );
 
-        const result = await response.json();
+        const result =
+          await readJsonSafely<FeedbackListResponse>(
+            response,
+          );
 
         if (!response.ok) {
-          throw new Error(
-            result.error ||
-              "Unable to load feedback data.",
+          setFeedbackList([]);
+          setTotalPages(1);
+          setTotalCount(0);
+
+          setFetchError(
+            getFeedbackServiceError(
+              response.status,
+              result?.error,
+            ),
           );
+
+          return;
         }
 
-        setFeedbackList(result.data || []);
+        setFeedbackList(result?.data || []);
 
         setTotalPages(
           Math.max(
-            result.meta?.totalPages || 1,
+            result?.meta?.totalPages || 1,
             1,
           ),
         );
 
-        setTotalCount(result.meta?.total || 0);
+        setTotalCount(result?.meta?.total || 0);
       } catch (error) {
-        console.error(
-          "Failed to fetch feedback:",
-          error,
-        );
-
         setFeedbackList([]);
+        setTotalPages(1);
+        setTotalCount(0);
 
         setFetchError(
-          error instanceof Error
-            ? error.message
-            : "Unable to load feedback data.",
+          getFeedbackServiceError(
+            undefined,
+            error instanceof Error
+              ? error.message
+              : undefined,
+          ),
         );
       } finally {
         setLoading(false);
@@ -440,18 +581,22 @@ export default function FeedbackPage() {
         },
       );
 
-      const data = await response.json();
+      const data =
+        await readJsonSafely<FeedbackMutationResponse>(
+          response,
+        );
 
       if (!response.ok) {
         setFormError(
-          data.error ||
-            "Failed to submit feedback.",
+          getFeedbackActionError(
+            response.status,
+            data?.error,
+          ),
         );
         return;
       }
 
       closeFeedbackForm();
-      setPage(1);
 
       setAlertMessage({
         type: "success",
@@ -459,15 +604,14 @@ export default function FeedbackPage() {
           "Feedback saved and sent for AI classification.",
       });
 
-      await fetchFeedback(true);
-    } catch (error) {
-      console.error(
-        "Failed to submit feedback:",
-        error,
-      );
-
+      if (page === 1) {
+        await fetchFeedback(true);
+      } else {
+        setPage(1);
+      }
+    } catch {
       setFormError(
-        "An error occurred while saving feedback.",
+        "The feedback service could not be reached. Please try again after the backend connection is available.",
       );
     } finally {
       setSubmitting(false);
@@ -576,38 +720,42 @@ export default function FeedbackPage() {
             },
           );
 
-          const data = await response.json();
+          const data =
+            await readJsonSafely<FeedbackMutationResponse>(
+              response,
+            );
 
           if (!response.ok) {
             setAlertMessage({
               type: "error",
               message:
-                data.error ||
-                "CSV import failed.",
+                getFeedbackActionError(
+                  response.status,
+                  data?.error,
+                ),
             });
             return;
           }
 
           setAlertMessage({
             type: "success",
-            message: `${data.count || parsedItems.length} feedback entries imported successfully.`,
+            message: `${data?.count || parsedItems.length} feedback entries imported successfully.`,
           });
 
-          setPage(1);
-          await fetchFeedback(true);
-        } catch (error) {
-          console.error(
-            "CSV processing failed:",
-            error,
-          );
-
+          if (page === 1) {
+            await fetchFeedback(true);
+          } else {
+            setPage(1);
+          }
+        } catch {
           setAlertMessage({
             type: "error",
             message:
-              "Unable to process the selected CSV file.",
+              "The feedback service could not be reached. CSV data was not uploaded.",
           });
         } finally {
           setCsvUploading(false);
+          setCsvFileName("");
 
           if (csvInputRef.current) {
             csvInputRef.current.value = "";
@@ -615,19 +763,19 @@ export default function FeedbackPage() {
         }
       },
 
-      error: (error) => {
-        console.error(
-          "CSV parsing failed:",
-          error,
-        );
-
+      error: () => {
         setCsvUploading(false);
+        setCsvFileName("");
 
         setAlertMessage({
           type: "error",
           message:
             "Unable to read the selected CSV file.",
         });
+
+        if (csvInputRef.current) {
+          csvInputRef.current.value = "";
+        }
       },
     });
   }
@@ -665,7 +813,6 @@ export default function FeedbackPage() {
       subtitle="Ingest, filter and manage workspace customer feedback in real time."
     >
       <div className="relative space-y-7">
-        {/* Toast Message */}
         {alertMessage && (
           <div
             className={`fixed right-4 top-24 z-[70] flex max-w-sm items-start gap-3 rounded-2xl border bg-white p-4 shadow-2xl sm:right-8 ${
@@ -719,7 +866,6 @@ export default function FeedbackPage() {
           </div>
         )}
 
-        {/* Hero */}
         <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-blue-950 to-violet-950 p-6 text-white shadow-xl sm:p-8">
           <div className="absolute -left-20 top-10 h-64 w-64 rounded-full bg-blue-600/20 blur-3xl" />
 
@@ -814,7 +960,6 @@ export default function FeedbackPage() {
           </div>
         </section>
 
-        {/* Summary Cards */}
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <SummaryCard
             title="Workspace Entries"
@@ -853,7 +998,6 @@ export default function FeedbackPage() {
           />
         </section>
 
-        {/* CSV Upload */}
         {showCsvModal && (
           <section className="overflow-hidden rounded-3xl border border-blue-200 bg-white shadow-lg">
             <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-gradient-to-r from-blue-50 to-violet-50 p-6 sm:p-7">
@@ -971,7 +1115,6 @@ export default function FeedbackPage() {
           </section>
         )}
 
-        {/* Single Feedback Form */}
         {showForm && (
           <section className="overflow-hidden rounded-3xl border border-blue-200 bg-white shadow-lg">
             <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-gradient-to-r from-blue-50 via-indigo-50 to-violet-50 p-6 sm:p-7">
@@ -1122,7 +1265,6 @@ export default function FeedbackPage() {
           </section>
         )}
 
-        {/* Search and Filters */}
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -1250,7 +1392,6 @@ export default function FeedbackPage() {
           </div>
         </section>
 
-        {/* Feedback Data */}
         <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-col gap-4 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
             <div>
@@ -1279,7 +1420,7 @@ export default function FeedbackPage() {
             <FeedbackSkeleton />
           ) : fetchError ? (
             <ErrorState
-              message={fetchError}
+              error={fetchError}
               onRetry={() =>
                 void fetchFeedback()
               }
@@ -1295,7 +1436,6 @@ export default function FeedbackPage() {
             />
           ) : (
             <>
-              {/* Desktop Table */}
               <div className="hidden overflow-x-auto lg:block">
                 <table className="w-full min-w-[1120px] text-left">
                   <thead className="bg-slate-50">
@@ -1468,7 +1608,6 @@ export default function FeedbackPage() {
                 </table>
               </div>
 
-              {/* Mobile Cards */}
               <div className="divide-y divide-slate-100 lg:hidden">
                 {feedbackList.map((item) => (
                   <article
@@ -1558,7 +1697,6 @@ export default function FeedbackPage() {
             </>
           )}
 
-          {/* Pagination */}
           <div className="flex flex-col gap-4 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <p className="text-xs font-semibold text-slate-500">
               Page {page} of {totalPages} ·{" "}
@@ -1600,7 +1738,6 @@ export default function FeedbackPage() {
           </div>
         </section>
 
-        {/* Detail Modal */}
         {selectedFeedback && (
           <FeedbackDetailModal
             item={selectedFeedback}
@@ -1796,33 +1933,150 @@ function FeedbackSkeleton() {
 }
 
 function ErrorState({
-  message,
+  error,
   onRetry,
 }: {
-  message: string;
+  error: FeedbackServiceError;
   onRetry: () => void;
 }) {
+  const isWorkspaceIssue =
+    error.kind === "unauthorized" ||
+    error.kind === "forbidden";
+
   return (
-    <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-      <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-100 text-rose-700">
-        <WarningIcon />
+    <div className="px-5 py-10 sm:px-8 sm:py-14">
+      <div className="mx-auto max-w-3xl overflow-hidden rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-blue-50 shadow-sm dark:border-amber-900 dark:from-amber-950 dark:via-slate-900 dark:to-blue-950">
+        <div className="grid gap-0 lg:grid-cols-[1fr_240px]">
+          <div className="p-6 sm:p-8">
+            <div className="flex items-start gap-4">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-200">
+                <WarningIcon />
+              </span>
+
+              <div>
+                <span className="inline-flex rounded-full bg-amber-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-amber-700 dark:bg-amber-900 dark:text-amber-200">
+                  Frontend ready
+                </span>
+
+                <h3 className="mt-4 text-xl font-bold text-slate-950 dark:text-white">
+                  {error.title}
+                </h3>
+
+                <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">
+                  {error.message}
+                </p>
+
+                <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={onRetry}
+                    className="flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-500"
+                  >
+                    <RefreshIcon spinning={false} />
+
+                    Retry Connection
+                  </button>
+
+                  <a
+                    href="/dashboard"
+                    className="flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    Return to Dashboard
+                  </a>
+                </div>
+
+                {error.technicalMessage && (
+                  <details className="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4 text-left dark:border-slate-700 dark:bg-slate-900/60">
+                    <summary className="cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
+                      Technical details
+                    </summary>
+
+                    <p className="mt-3 break-words font-mono text-[11px] leading-5 text-slate-500 dark:text-slate-400">
+                      {error.technicalMessage}
+                    </p>
+                  </details>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-amber-200 bg-slate-950 p-6 text-white dark:border-amber-900 lg:border-l lg:border-t-0">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-300">
+              Status
+            </p>
+
+            <div className="mt-5 space-y-4">
+              <ServiceStatusRow
+                label="Frontend interface"
+                status="Ready"
+                ready
+              />
+
+              <ServiceStatusRow
+                label="Responsive design"
+                status="Ready"
+                ready
+              />
+
+              <ServiceStatusRow
+                label="API connection"
+                status="Waiting"
+              />
+
+              <ServiceStatusRow
+                label="Workspace session"
+                status={
+                  isWorkspaceIssue
+                    ? "Required"
+                    : "Checking"
+                }
+              />
+            </div>
+
+            <p className="mt-6 text-xs leading-5 text-slate-400">
+              No backend authentication or workspace
+              logic was changed by this frontend
+              update.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ServiceStatusRow({
+  label,
+  status,
+  ready = false,
+}: {
+  label: string;
+  status: string;
+  ready?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-xs text-slate-400">
+        {label}
       </span>
 
-      <h3 className="mt-5 text-lg font-bold text-slate-950">
-        Unable to load feedback
-      </h3>
-
-      <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
-        {message}
-      </p>
-
-      <button
-        type="button"
-        onClick={onRetry}
-        className="mt-5 rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
+      <span
+        className={`flex items-center gap-2 text-xs font-bold ${
+          ready
+            ? "text-emerald-300"
+            : "text-amber-300"
+        }`}
       >
-        Try Again
-      </button>
+        <span
+          className={`h-2 w-2 rounded-full ${
+            ready
+              ? "bg-emerald-400"
+              : "bg-amber-400"
+          }`}
+        />
+
+        {status}
+      </span>
     </div>
   );
 }
@@ -2045,7 +2299,11 @@ function SearchIcon() {
       aria-hidden="true"
     >
       <circle cx="11" cy="11" r="7" />
-      <path strokeLinecap="round" d="m16 16 4 4" />
+
+      <path
+        strokeLinecap="round"
+        d="m16 16 4 4"
+      />
     </svg>
   );
 }
@@ -2220,7 +2478,12 @@ function DatabaseIcon() {
       className="h-5 w-5"
       aria-hidden="true"
     >
-      <ellipse cx="12" cy="5" rx="8" ry="3" />
+      <ellipse
+        cx="12"
+        cy="5"
+        rx="8"
+        ry="3"
+      />
 
       <path
         strokeLinecap="round"
@@ -2241,8 +2504,16 @@ function PositiveIcon() {
       className="h-5 w-5"
       aria-hidden="true"
     >
-      <circle cx="12" cy="12" r="9" />
-      <path strokeLinecap="round" d="M8.5 10h.01M15.5 10h.01M8.5 15c1.8 1.6 5.2 1.6 7 0" />
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+      />
+
+      <path
+        strokeLinecap="round"
+        d="M8.5 10h.01M15.5 10h.01M8.5 15c1.8 1.6 5.2 1.6 7 0"
+      />
     </svg>
   );
 }
@@ -2263,7 +2534,10 @@ function WarningIcon() {
         d="M12 3 2.8 19h18.4L12 3Z"
       />
 
-      <path strokeLinecap="round" d="M12 9v4M12 16h.01" />
+      <path
+        strokeLinecap="round"
+        d="M12 9v4M12 16h.01"
+      />
     </svg>
   );
 }
@@ -2278,8 +2552,18 @@ function NewIcon() {
       className="h-5 w-5"
       aria-hidden="true"
     >
-      <rect x="4" y="4" width="16" height="16" rx="4" />
-      <path strokeLinecap="round" d="M12 8v8M8 12h8" />
+      <rect
+        x="4"
+        y="4"
+        width="16"
+        height="16"
+        rx="4"
+      />
+
+      <path
+        strokeLinecap="round"
+        d="M12 8v8M8 12h8"
+      />
     </svg>
   );
 }
