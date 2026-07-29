@@ -72,4 +72,4 @@ npx tsx prisma/seed.ts
 | `POST` | `/api/feedback` | Single feedback ingestion |
 | `POST` | `/api/feedback/bulk` | Bulk CSV feedback ingestion |
 | `POST` | `/api/classify` | Anthropic Claude AI auto-classification engine |
-| `POST` | `/api/ask-loop` | RAG semantic search & Q&A grounded with citations 
+| `POST` | `/api/ask-loop` | RAG semantic search & Q&A grounded with citations |
