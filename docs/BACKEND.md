@@ -9,6 +9,7 @@ Welcome to the backend architecture guide for **Project LOOP**. This document ou
 
 Every entity in our Prisma database schema (except `Workspace`) enforces a mandatory `workspaceId` column and relational index:
 
+
 ```prisma
 model Feedback {
   id          String   @id @default(cuid())
