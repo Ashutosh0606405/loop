@@ -45,6 +45,14 @@ export const askLoopQuerySchema = z.object({
   question: z.string().min(3, "Question must be at least 3 characters"),
 });
 
+// AI Classification Output Schema — validates whatever the model returns
+// before it gets trusted and written to the database.
+export const classificationSchema = z.object({
+  sentiment: z.enum(["POSITIVE", "NEGATIVE", "NEUTRAL"]),
+  sentimentScore: z.number().min(-1).max(1),
+  themes: z.array(z.string()).default([]),
+});
+
 // Report Generator Schema
 export const generateReportSchema = z.object({
   title: z.string().min(3, "Report title is required"),
