@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getTenantContext, unauthorizedResponse } from "@/lib/tenant-guard";
 import { askLoopQuerySchema } from "@/lib/zod-schemas";
+import { embedText, cosineSimilarity } from "@/lib/embeddings";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY;
 
@@ -20,14 +21,48 @@ export async function POST(req: Request) {
 
     const { question } = validated.data;
 
-    // Retrieve relevant feedback items belonging ONLY to the user's workspaceId
-    const feedbackItems = await db.feedback.findMany({
-      where: {
-        workspaceId: tenant.workspaceId,
-      },
-      take: 15,
-      orderBy: { createdAt: "desc" },
-    });
+    // Semantic retrieval: embed the question, score every stored embedding in
+    // this workspace by cosine similarity, and take the top matches. This is
+    // what makes the retrieved context actually relevant to what was asked,
+    // rather than just whatever feedback is most recent.
+    let feedbackItems: any[] = [];
+
+    const questionVector = await embedText(question, "query");
+
+    if (questionVector) {
+      const embeddings = await db.embedding.findMany({
+        where: { feedback: { workspaceId: tenant.workspaceId } },
+        include: { feedback: true },
+      });
+
+      feedbackItems = embeddings
+        .map((e: any) => {
+          if (!e.vector) return null;
+          let vec: number[];
+          try {
+            vec = JSON.parse(e.vector);
+          } catch {
+            return null;
+          }
+          return { feedback: e.feedback, score: cosineSimilarity(questionVector, vec) };
+        })
+        .filter((x: any): x is { feedback: any; score: number } => x !== null)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 8)
+        .map((s) => s.feedback);
+    }
+
+    // Fallback for workspaces that have feedback but nothing embedded yet
+    // (e.g. embeddings failed, or VOYAGE_API_KEY isn't configured).
+    if (feedbackItems.length === 0) {
+      feedbackItems = await db.feedback.findMany({
+        where: {
+          workspaceId: tenant.workspaceId,
+        },
+        take: 15,
+        orderBy: { createdAt: "desc" },
+      });
+    }
 
     if (feedbackItems.length === 0) {
       return NextResponse.json({
@@ -61,9 +96,12 @@ Question: "${question}"
 Customer Feedback Context:
 ${context}`;
 
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": GEMINI_API_KEY,
+          },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
           }),

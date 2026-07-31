@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getTenantContext, unauthorizedResponse } from "@/lib/tenant-guard";
+import { classificationSchema } from "@/lib/zod-schemas";
+import { embedAndStoreFeedback } from "@/lib/embeddings";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY;
 
@@ -28,6 +30,8 @@ export async function POST(req: Request) {
     let sentiment: "POSITIVE" | "NEGATIVE" | "NEUTRAL" = "NEUTRAL";
     let sentimentScore = 0;
     let extractedThemes: string[] = [];
+    let classifiedByAI = false;
+    let aiEngineUsed = "Rule Engine Fallback";
 
     // 1. Google Gemini AI Engine
     if (GEMINI_API_KEY && GEMINI_API_KEY !== "mock-key") {
@@ -43,9 +47,11 @@ JSON Schema:
   "themes": array of string category names (e.g. "Product Quality", "Application Speed", "Payment Issues", "Customer Support")
 }`;
 
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json", 
+            "x-goog-api-key": GEMINI_API_KEY},
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: { responseMimeType: "application/json" }
@@ -56,17 +62,27 @@ JSON Schema:
           const geminiData = await res.json();
           const jsonText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
           if (jsonText) {
-            const parsed = JSON.parse(jsonText);
-            sentiment = parsed.sentiment ?? "NEUTRAL";
-            sentimentScore = typeof parsed.sentimentScore === "number" ? parsed.sentimentScore : 0;
-            extractedThemes = Array.isArray(parsed.themes) ? parsed.themes : [];
+            // Never trust the model's JSON directly — validate before using it.
+            const validated = classificationSchema.safeParse(JSON.parse(jsonText));
+            if (validated.success) {
+              sentiment = validated.data.sentiment;
+              sentimentScore = validated.data.sentimentScore;
+              extractedThemes = validated.data.themes;
+              classifiedByAI = true;
+              aiEngineUsed = "Google Gemini API";
+            } else {
+              console.warn("Gemini classification failed schema validation:", validated.error.flatten());
+            }
           }
         }
       } catch (geminiErr) {
         console.warn("Gemini API call warning:", geminiErr);
       }
-    } else {
-      // Mock Intelligent Fallback Classifier if key is pending configuration
+    }
+
+    if (!classifiedByAI) {
+      // Mock Intelligent Fallback Classifier — used when the key is missing,
+      // the call fails, or the model's output didn't pass validation.
       const contentLower = feedback.content.toLowerCase();
       if (contentLower.includes("great") || contentLower.includes("easy") || contentLower.includes("resolved") || contentLower.includes("fast")) {
         sentiment = "POSITIVE";
@@ -125,11 +141,16 @@ JSON Schema:
       });
     }
 
+    // Generate and store a vector embedding for this feedback item so
+    // Ask LOOP can find it later via semantic search. Never let a failure
+    // here break the classification response.
+    await embedAndStoreFeedback(feedback.id, feedback.content);
+
     return NextResponse.json({
       message: "Feedback auto-classified successfully",
       feedback: updatedFeedback,
       themes: extractedThemes,
-      aiEngine: GEMINI_API_KEY ? "Google Gemini API" : "Rule Engine Fallback",
+      aiEngine: aiEngineUsed,
     });
   } catch (error: any) {
     if (error.message?.startsWith("UNAUTHORIZED")) {
