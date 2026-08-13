@@ -11,41 +11,57 @@ const VOYAGE_MODEL = process.env.VOYAGE_MODEL || "voyage-4-lite";
  * Returns null (never throws) if the key is missing or the call fails, so
  * callers can degrade gracefully instead of breaking the request.
  */
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function embedText(
   text: string,
-  inputType: "query" | "document" = "document"
+  inputType: "query" | "document" = "document",
+  retries = 3,
 ): Promise<number[] | null> {
   if (!VOYAGE_API_KEY) {
     console.warn("embedText: VOYAGE_API_KEY not set, skipping embedding");
     return null;
   }
 
-  try {
-    const res = await fetch("https://api.voyageai.com/v1/embeddings", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${VOYAGE_API_KEY}`,
-      },
-      body: JSON.stringify({
-        input: text,
-        model: VOYAGE_MODEL,
-        input_type: inputType,
-      }),
-    });
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch("https://api.voyageai.com/v1/embeddings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${VOYAGE_API_KEY}`,
+        },
+        body: JSON.stringify({
+          input: text,
+          model: VOYAGE_MODEL,
+          input_type: inputType,
+        }),
+      });
 
-    if (!res.ok) {
-      console.warn("embedText: Voyage API returned", res.status, await res.text());
+      if (res.status === 429 && attempt < retries) {
+        // Voyage's rate limit is tight on smaller plans — back off and retry
+        // rather than silently giving up and leaving this item unembedded.
+        await sleep(1500 * (attempt + 1));
+        continue;
+      }
+
+      if (!res.ok) {
+        console.warn("embedText: Voyage API returned", res.status, await res.text());
+        return null;
+      }
+
+      const data = await res.json();
+      const vector = data?.data?.[0]?.embedding;
+      return Array.isArray(vector) ? vector : null;
+    } catch (err) {
+      console.warn("embedText: Voyage API call failed", err);
       return null;
     }
-
-    const data = await res.json();
-    const vector = data?.data?.[0]?.embedding;
-    return Array.isArray(vector) ? vector : null;
-  } catch (err) {
-    console.warn("embedText: Voyage API call failed", err);
-    return null;
   }
+
+  return null;
 }
 
 /**
@@ -60,6 +76,13 @@ export async function embedAndStoreFeedback(feedbackId: string, content: string)
 
     // Lazy import to avoid a require cycle with lib/db in edge cases.
     const { db } = await import("@/lib/db");
+
+    // Delete any existing embeddings for this feedback item first. Without
+    // this, re-classifying an item (or switching embedding models/versions)
+    // just piles up extra rows with mismatched vector dimensions that
+    // silently break cosine similarity comparisons later.
+    await db.embedding.deleteMany({ where: { feedbackId } });
+
     await db.embedding.create({
       data: {
         feedbackId,

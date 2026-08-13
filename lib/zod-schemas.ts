@@ -43,6 +43,7 @@ export const feedbackQuerySchema = z.object({
 // AI Ask LOOP Query Schema
 export const askLoopQuerySchema = z.object({
   question: z.string().min(3, "Question must be at least 3 characters"),
+  mode: z.enum(["Concise", "Detailed"]).optional().default("Detailed"),
 });
 
 // AI Classification Output Schema — validates whatever the model returns

@@ -100,272 +100,91 @@ function createMessageId() {
     .slice(2, 8)}`;
 }
 
-function generateDemoAnswer(
+function mapApiSentiment(
+  sentiment?: string,
+): Sentiment {
+  if (sentiment === "POSITIVE") {
+    return "Positive";
+  }
+
+  if (sentiment === "NEGATIVE") {
+    return "Negative";
+  }
+
+  return "Neutral";
+}
+
+type AskLoopCitation = {
+  id: string;
+  index: number;
+  customer: string;
+  channel: string;
+  content: string;
+  sentiment: string;
+  relevance: number | null;
+};
+
+type AskLoopResponse = {
+  answer: string;
+  citations: AskLoopCitation[];
+  error?: string;
+};
+
+async function fetchAskLoopAnswer(
   question: string,
-  answerMode: AnswerMode,
-): AnswerResult {
-  const normalizedQuestion =
-    question.toLowerCase();
+  mode: AnswerMode,
+): Promise<AnswerResult> {
+  const response = await fetch(
+    "/api/ask-loop",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        question,
+        mode,
+      }),
+    },
+  );
 
-  const concise =
-    answerMode === "Concise";
+  const data: AskLoopResponse =
+    await response.json();
 
-  if (
-    normalizedQuestion.includes("payment") ||
-    normalizedQuestion.includes(
-      "transaction",
-    )
-  ) {
-    return {
-      content: concise
-        ? "Payment feedback mainly highlights delayed confirmation messages. Customers want faster confirmation and a clearer real-time payment status."
-        : "Payment-related feedback is increasing. Most customers report that transactions complete successfully, but confirmation messages arrive late. This creates uncertainty about whether the payment was completed. Customers want a clearer real-time payment status, faster confirmation and better error messaging.",
-      confidence: 92,
-      themes: [
-        "Payment Delay",
-        "Transaction Status",
-        "User Trust",
-      ],
-      evidence: [
-        {
-          quote:
-            "Payment succeeded, but the confirmation message arrived late.",
-          source: "Support Ticket",
-          sentiment: "Neutral",
-          relevance: 95,
-        },
-        {
-          quote:
-            "I was not sure whether my payment was completed.",
-          source: "App Review",
-          sentiment: "Negative",
-          relevance: 91,
-        },
-        {
-          quote:
-            "The transaction worked, but I had to wait for the status update.",
-          source: "Web Form",
-          sentiment: "Neutral",
-          relevance: 86,
-        },
-      ],
-    };
+  if (!response.ok) {
+    throw new Error(
+      data?.error ??
+        "Ask LOOP could not answer that question.",
+    );
   }
 
-  if (
-    normalizedQuestion.includes(
-      "onboarding",
-    ) ||
-    normalizedQuestion.includes(
-      "new user",
-    ) ||
-    normalizedQuestion.includes(
-      "first time",
-    )
-  ) {
-    return {
-      content: concise
-        ? "New users find onboarding useful but too long. A shorter walkthrough and clearer first action would improve the experience."
-        : "Customers find the product useful, but first-time users feel that the onboarding process contains too many steps and options. A shorter walkthrough, clearer first-action guidance and progressive feature introduction could improve activation and reduce confusion.",
-      confidence: 89,
-      themes: [
-        "Onboarding",
-        "First-time Users",
-        "Product Guidance",
-      ],
-      evidence: [
-        {
-          quote:
-            "I would like a simpler onboarding guide for first-time users.",
-          source: "NPS Survey",
-          sentiment: "Neutral",
-          relevance: 94,
-        },
-        {
-          quote:
-            "The first screen contains too many options.",
-          source: "User Interview",
-          sentiment: "Negative",
-          relevance: 90,
-        },
-        {
-          quote:
-            "A short product tour would make the setup easier.",
-          source: "Web App",
-          sentiment: "Neutral",
-          relevance: 84,
-        },
-      ],
-    };
-  }
-
-  if (
-    normalizedQuestion.includes("like") ||
-    normalizedQuestion.includes(
-      "positive",
-    ) ||
-    normalizedQuestion.includes("best") ||
-    normalizedQuestion.includes(
-      "favourite",
-    ) ||
-    normalizedQuestion.includes(
-      "favorite",
-    )
-  ) {
-    return {
-      content: concise
-        ? "Customers most appreciate the clean dashboard, responsive interface and fast customer-support resolution."
-        : "Customers respond positively to the clean dashboard, responsive user interface and quick customer-support resolution. Ease of use and visual clarity are currently the strongest positive themes, followed by the speed of support assistance.",
-      confidence: 94,
-      themes: [
-        "Dashboard",
-        "User Experience",
-        "Customer Support",
-      ],
-      evidence: [
-        {
-          quote:
-            "The latest dashboard update is clean and very easy to use.",
-          source: "App Review",
-          sentiment: "Positive",
-          relevance: 97,
-        },
-        {
-          quote:
-            "The support executive resolved my account issue quickly.",
-          source: "Social Media",
-          sentiment: "Positive",
-          relevance: 91,
-        },
-        {
-          quote:
-            "The interface feels simple and responsive.",
-          source: "Customer Survey",
-          sentiment: "Positive",
-          relevance: 88,
-        },
-      ],
-    };
-  }
-
-  if (
-    normalizedQuestion.includes("issue") ||
-    normalizedQuestion.includes(
-      "attention",
-    ) ||
-    normalizedQuestion.includes(
-      "problem",
-    ) ||
-    normalizedQuestion.includes(
-      "urgent",
-    )
-  ) {
-    return {
-      content: concise
-        ? "Checkout slowdown is the most urgent issue, followed by delayed payment confirmation. Both should receive immediate technical attention."
-        : "The most urgent issue is checkout performance, followed by delayed payment confirmation. Customers experience page slowdown when multiple products are added, while delayed confirmation creates uncertainty after payment. These two areas should receive immediate technical investigation.",
-      confidence: 96,
-      themes: [
-        "Checkout Performance",
-        "Payment Confirmation",
-        "Technical Issues",
-      ],
-      evidence: [
-        {
-          quote:
-            "The checkout page becomes slow when multiple products are added.",
-          source: "Survey",
-          sentiment: "Negative",
-          relevance: 98,
-        },
-        {
-          quote:
-            "Payment confirmation took too long.",
-          source: "Support Ticket",
-          sentiment: "Neutral",
-          relevance: 92,
-        },
-        {
-          quote:
-            "The application froze for a few seconds during checkout.",
-          source: "App Review",
-          sentiment: "Negative",
-          relevance: 89,
-        },
-      ],
-    };
-  }
-
-  if (
-    normalizedQuestion.includes(
-      "support",
-    ) ||
-    normalizedQuestion.includes(
-      "service",
-    )
-  ) {
-    return {
-      content: concise
-        ? "Customer support receives mostly positive feedback for quick issue resolution, but response consistency can still improve."
-        : "Customer support receives mostly positive feedback. Customers appreciate quick issue resolution and helpful executives. However, a small group reports inconsistent response times during peak hours, suggesting that support availability could be improved.",
-      confidence: 88,
-      themes: [
-        "Customer Support",
-        "Response Time",
-        "Issue Resolution",
-      ],
-      evidence: [
-        {
-          quote:
-            "The support executive resolved my problem quickly.",
-          source: "Support Ticket",
-          sentiment: "Positive",
-          relevance: 95,
-        },
-        {
-          quote:
-            "The response was helpful, but I waited longer during the evening.",
-          source: "Email",
-          sentiment: "Neutral",
-          relevance: 84,
-        },
-      ],
-    };
-  }
+  const evidence: Evidence[] = (
+    data.citations ?? []
+  ).map((citation) => ({
+    quote: citation.content,
+    source:
+      citation.channel ||
+      "Customer Feedback",
+    sentiment: mapApiSentiment(
+      citation.sentiment,
+    ),
+    relevance:
+      typeof citation.relevance ===
+      "number"
+        ? citation.relevance
+        : Math.max(
+            50,
+            95 - citation.index * 5,
+          ),
+  }));
 
   return {
-    content: concise
-      ? "Customers generally like the dashboard and support experience. The main opportunities are checkout speed, payment confirmation and onboarding clarity."
-      : "Based on the available demo feedback, customers generally like the dashboard, responsive interface and customer-support experience. The main improvement opportunities are checkout performance, payment confirmation speed and onboarding clarity for first-time users.",
-    confidence: 86,
-    themes: [
-      "Customer Experience",
-      "Product Performance",
-      "Onboarding",
-    ],
-    evidence: [
-      {
-        quote:
-          "The dashboard is clean and easy to use.",
-        source: "App Review",
-        sentiment: "Positive",
-        relevance: 91,
-      },
-      {
-        quote:
-          "The checkout page becomes slow when multiple products are added.",
-        source: "Survey",
-        sentiment: "Negative",
-        relevance: 88,
-      },
-      {
-        quote:
-          "A shorter onboarding guide would be helpful.",
-        source: "NPS Survey",
-        sentiment: "Neutral",
-        relevance: 82,
-      },
-    ],
+    content:
+      data.answer ||
+      "I could not find an answer based on your current feedback data.",
+    evidence,
+    themes: [],
+    confidence: 0,
   };
 }
 
@@ -498,7 +317,7 @@ export default function AskLoopPage() {
     });
   }
 
-  function sendQuestion(
+  async function sendQuestion(
     customQuestion?: string,
   ) {
     const question = (
@@ -535,19 +354,29 @@ export default function AskLoopPage() {
     setInput("");
     setIsThinking(true);
 
-    window.setTimeout(() => {
-      const answer = generateDemoAnswer(
-        question,
-        answerMode,
-      );
+    try {
+      const answer =
+        await fetchAskLoopAnswer(
+          question,
+          answerMode,
+        );
 
       const assistantMessage: ChatMessage = {
         id: createMessageId(),
         role: "assistant",
         content: answer.content,
-        evidence: answer.evidence,
-        themes: answer.themes,
-        confidence: answer.confidence,
+        evidence:
+          answer.evidence.length > 0
+            ? answer.evidence
+            : undefined,
+        themes:
+          answer.themes.length > 0
+            ? answer.themes
+            : undefined,
+        confidence:
+          answer.confidence > 0
+            ? answer.confidence
+            : undefined,
         createdAt: new Date().toISOString(),
       };
 
@@ -555,10 +384,30 @@ export default function AskLoopPage() {
         ...previousMessages,
         assistantMessage,
       ]);
+    } catch (error) {
+      showToast(
+        "error",
+        error instanceof Error
+          ? error.message
+          : "Ask LOOP could not answer that question.",
+      );
 
+      const assistantMessage: ChatMessage = {
+        id: createMessageId(),
+        role: "assistant",
+        content:
+          "Something went wrong answering that question. Please try again.",
+        createdAt: new Date().toISOString(),
+      };
+
+      setMessages((previousMessages) => [
+        ...previousMessages,
+        assistantMessage,
+      ]);
+    } finally {
       setIsThinking(false);
       inputRef.current?.focus();
-    }, 1100);
+    }
   }
 
   function handleSubmit(
@@ -761,33 +610,6 @@ export default function AskLoopPage() {
               />
             </div>
           </div>
-        </section>
-
-        {/* Prototype Notice */}
-        <section className="flex flex-col gap-4 rounded-2xl border border-amber-200 bg-amber-50 p-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
-              <InfoIcon />
-            </span>
-
-            <div>
-              <p className="text-sm font-bold text-amber-900">
-                Frontend demonstration
-              </p>
-
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-amber-800">
-                Responses currently use demo
-                feedback data. The backend API,
-                vector search and live RAG data
-                connection can be integrated without
-                changing this interface.
-              </p>
-            </div>
-          </div>
-
-          <span className="w-fit shrink-0 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-800">
-            Demo mode
-          </span>
         </section>
 
         {/* Workspace */}

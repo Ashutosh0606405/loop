@@ -19,13 +19,13 @@ export async function POST(req: Request) {
       );
     }
 
-    const { question } = validated.data;
+    const { question, mode } = validated.data;
 
     // Semantic retrieval: embed the question, score every stored embedding in
     // this workspace by cosine similarity, and take the top matches. This is
     // what makes the retrieved context actually relevant to what was asked,
     // rather than just whatever feedback is most recent.
-    let feedbackItems: any[] = [];
+    let rankedItems: { feedback: any; score: number | null }[] = [];
 
     const questionVector = await embedText(question, "query");
 
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
         include: { feedback: true },
       });
 
-      feedbackItems = embeddings
+      rankedItems = embeddings
         .map((e: any) => {
           if (!e.vector) return null;
           let vec: number[];
@@ -44,27 +44,35 @@ export async function POST(req: Request) {
           } catch {
             return null;
           }
+          // Embeddings created by an older/different model have a different
+          // dimension count and are not comparable — cosineSimilarity would
+          // silently return 0 for these, which looks like "found it but it's
+          // irrelevant" rather than "can't compare this at all". Skip them
+          // outright so they fall back to recency instead of showing a fake
+          // 0% relevance score.
+          if (vec.length !== questionVector.length) return null;
           return { feedback: e.feedback, score: cosineSimilarity(questionVector, vec) };
         })
         .filter((x: any): x is { feedback: any; score: number } => x !== null)
         .sort((a, b) => b.score - a.score)
-        .slice(0, 8)
-        .map((s) => s.feedback);
+        .slice(0, 8);
     }
 
     // Fallback for workspaces that have feedback but nothing embedded yet
-    // (e.g. embeddings failed, or VOYAGE_API_KEY isn't configured).
-    if (feedbackItems.length === 0) {
-      feedbackItems = await db.feedback.findMany({
+    // (e.g. embeddings failed, or VOYAGE_API_KEY isn't configured). No
+    // meaningful similarity score exists on this path, so score is null.
+    if (rankedItems.length === 0) {
+      const recent = await db.feedback.findMany({
         where: {
           workspaceId: tenant.workspaceId,
         },
         take: 15,
         orderBy: { createdAt: "desc" },
       });
+      rankedItems = recent.map((feedback) => ({ feedback, score: null }));
     }
 
-    if (feedbackItems.length === 0) {
+    if (rankedItems.length === 0) {
       return NextResponse.json({
         answer: "No customer feedback found in your workspace database yet. Please ingest feedback to ask questions.",
         citations: [],
@@ -72,24 +80,32 @@ export async function POST(req: Request) {
     }
 
     // Format context for grounded RAG query
-    const context = feedbackItems
-      .map((item: any, idx: number) => `[Citation ${idx + 1}] Customer: ${item.customerName || "Anonymous"} | Channel: ${item.channel} | Feedback: "${item.content}"`)
+    const context = rankedItems
+      .map(({ feedback: item }, idx: number) => `[Citation ${idx + 1}] Customer: ${item.customerName || "Anonymous"} | Channel: ${item.channel} | Feedback: "${item.content}"`)
       .join("\n");
 
     let answer = "";
-    const citations = feedbackItems.map((item: any, idx: number) => ({
+    const citations = rankedItems.map(({ feedback: item, score }, idx: number) => ({
       id: item.id,
       index: idx + 1,
       customer: item.customerName || "Anonymous Customer",
       channel: item.channel,
       content: item.content,
       sentiment: item.sentiment || "NEUTRAL",
+      // 0-100 similarity score when real semantic search ran, null on the
+      // recency-fallback path where there's nothing meaningful to report.
+      relevance: score != null ? Math.round(Math.max(0, Math.min(1, score)) * 100) : null,
     }));
 
     // 1. Google Gemini AI Engine RAG Query
     if (GEMINI_API_KEY && GEMINI_API_KEY !== "mock-key") {
       try {
-        const prompt = `You are LOOP, an AI Customer-Feedback Intelligence assistant. Answer the user's question based strictly on the provided customer feedback context below. Always cite relevant feedback using [Citation X] format.
+        const styleInstruction =
+          mode === "Concise"
+            ? "Answer in 2-3 concise sentences."
+            : "Provide a detailed, thorough answer that covers relevant nuance.";
+
+        const prompt = `You are LOOP, an AI Customer-Feedback Intelligence assistant. Answer the user's question based strictly on the provided customer feedback context below. Always cite relevant feedback using [Citation X] format. ${styleInstruction}
 
 Question: "${question}"
 
