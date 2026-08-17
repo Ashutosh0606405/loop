@@ -83,6 +83,15 @@ type FeedbackListResponse = {
 type FeedbackMutationResponse = {
   count?: number;
   error?: string;
+  classification?: {
+    ok?: boolean;
+    classifiedByAI?: boolean;
+    embedded?: boolean;
+    themes?: string[];
+    error?: string | null;
+    pending?: number;
+    note?: string;
+  };
 };
 
 async function readJsonSafely<T>(
@@ -598,10 +607,20 @@ export default function FeedbackPage() {
 
       closeFeedbackForm();
 
+      // Report what actually happened rather than assuming the AI ran. An item
+      // that failed to embed won't be findable by Ask LOOP, and the user
+      // should know that at the moment it happens.
+      const classification = data?.classification;
+
       setAlertMessage({
-        type: "success",
-        message:
-          "Feedback saved and sent for AI classification.",
+        type: classification?.embedded
+          ? "success"
+          : "info",
+        message: !classification?.ok
+          ? "Feedback saved, but AI classification failed. It will not appear in Ask LOOP until it is reclassified."
+          : classification.embedded
+            ? "Feedback saved and classified."
+            : "Feedback saved and classified, but the search index could not be updated. It will not appear in Ask LOOP until it is reclassified.",
       });
 
       if (page === 1) {
@@ -738,8 +757,11 @@ export default function FeedbackPage() {
           }
 
           setAlertMessage({
-            type: "success",
-            message: `${data?.count || parsedItems.length} feedback entries imported successfully.`,
+            type: "info",
+            // Imported rows are intentionally not classified inline (too slow
+            // for a whole CSV), so they aren't searchable by Ask LOOP yet.
+            // Say that plainly instead of implying the import is complete.
+            message: `${data?.count || parsedItems.length} feedback entries imported. They are not classified or searchable in Ask LOOP yet — run reclassification to index them.`,
           });
 
           if (page === 1) {

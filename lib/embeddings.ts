@@ -38,6 +38,7 @@ export async function embedText(
           model: VOYAGE_MODEL,
           input_type: inputType,
         }),
+        signal: AbortSignal.timeout(15_000),
       });
 
       if (res.status === 429 && attempt < retries) {
@@ -69,10 +70,13 @@ export async function embedText(
  * Safe to call fire-and-forget-ish (still awaited) — swallows errors so a
  * failed embedding never breaks the classification response.
  */
-export async function embedAndStoreFeedback(feedbackId: string, content: string): Promise<void> {
+export async function embedAndStoreFeedback(
+  feedbackId: string,
+  content: string,
+): Promise<boolean> {
   try {
     const vector = await embedText(content, "document");
-    if (!vector) return;
+    if (!vector) return false;
 
     // Lazy import to avoid a require cycle with lib/db in edge cases.
     const { db } = await import("@/lib/db");
@@ -89,8 +93,11 @@ export async function embedAndStoreFeedback(feedbackId: string, content: string)
         vector: JSON.stringify(vector),
       },
     });
+
+    return true;
   } catch (err) {
     console.warn("embedAndStoreFeedback: failed to store embedding", err);
+    return false;
   }
 }
 
