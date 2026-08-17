@@ -23,7 +23,8 @@ type Evidence = {
   quote: string;
   source: string;
   sentiment: Sentiment;
-  relevance: number;
+  // null when the backend fell back to recency and has no similarity score.
+  relevance: number | null;
 };
 
 type ChatMessage = {
@@ -33,14 +34,13 @@ type ChatMessage = {
   createdAt: string;
   evidence?: Evidence[];
   themes?: string[];
-  confidence?: number;
+  retrieval?: RetrievalInfo;
 };
 
 type AnswerResult = {
   content: string;
   evidence: Evidence[];
-  themes: string[];
-  confidence: number;
+  retrieval?: RetrievalInfo;
 };
 
 type ToastMessage = {
@@ -124,11 +124,87 @@ type AskLoopCitation = {
   relevance: number | null;
 };
 
-type AskLoopResponse = {
-  answer: string;
-  citations: AskLoopCitation[];
-  error?: string;
+type RetrievalInfo = {
+  mode: "semantic" | "recency" | "no_match";
+  totalFeedback: number;
+  searchable: number;
+  skippedIncompatible: number;
+  skippedUnreadable: number;
+  belowThreshold: number;
+  used: number;
 };
+
+type AskLoopResponse = {
+  answer: string | null;
+  citations: AskLoopCitation[];
+  retrieval?: RetrievalInfo;
+  error?: string;
+  message?: string;
+};
+
+/**
+ * Reads the response body without assuming it's JSON. An upstream proxy error
+ * or a Next error page returns HTML, and calling .json() on that throws a
+ * SyntaxError that surfaces to the user as "Unexpected token '<'".
+ */
+async function readJson(
+  response: Response,
+): Promise<AskLoopResponse | null> {
+  try {
+    return (await response.json()) as AskLoopResponse;
+  } catch {
+    return null;
+  }
+}
+
+function describeHttpError(
+  status: number,
+  data: AskLoopResponse | null,
+): string {
+  if (status === 401) {
+    return "Your session has expired. Please sign in again.";
+  }
+
+  if (status === 403) {
+    return "You do not have permission to use Ask LOOP.";
+  }
+
+  if (status === 400) {
+    return "That question could not be processed. Try rephrasing it.";
+  }
+
+  // 503 is our own explicit "AI unavailable / not configured" signal, and it
+  // carries a human-readable message describing which one it was.
+  if (data?.message) {
+    return data.message;
+  }
+
+  if (status >= 500) {
+    return "Ask LOOP is temporarily unavailable. Please try again shortly.";
+  }
+
+  return "Ask LOOP could not answer that question.";
+}
+
+function toEvidence(
+  citations: AskLoopCitation[],
+): Evidence[] {
+  return (citations ?? []).map(
+    (citation) => ({
+      quote: citation.content,
+      source:
+        citation.channel ||
+        "Customer Feedback",
+      sentiment: mapApiSentiment(
+        citation.sentiment,
+      ),
+      // Pass through as-is. null means the backend fell back to recency and
+      // has no meaningful similarity score — inventing a plausible-looking
+      // number here would present a guess as a measurement.
+      relevance: citation.relevance,
+    }),
+  );
+}
 
 async function fetchAskLoopAnswer(
   question: string,
@@ -145,46 +221,48 @@ async function fetchAskLoopAnswer(
         question,
         mode,
       }),
+      signal:
+        AbortSignal.timeout(45_000),
     },
   );
 
-  const data: AskLoopResponse =
-    await response.json();
+  const data = await readJson(response);
 
   if (!response.ok) {
-    throw new Error(
-      data?.error ??
-        "Ask LOOP could not answer that question.",
-    );
+    const error = new Error(
+      describeHttpError(
+        response.status,
+        data,
+      ),
+    ) as Error & {
+      evidence?: Evidence[];
+      retrieval?: RetrievalInfo;
+    };
+
+    // A 503 from us still carries the retrieved feedback — surface it rather
+    // than throwing it away, so the user sees real evidence even when no
+    // answer could be generated.
+    if (data?.citations?.length) {
+      error.evidence = toEvidence(
+        data.citations,
+      );
+      error.retrieval = data.retrieval;
+    }
+
+    throw error;
   }
 
-  const evidence: Evidence[] = (
-    data.citations ?? []
-  ).map((citation) => ({
-    quote: citation.content,
-    source:
-      citation.channel ||
-      "Customer Feedback",
-    sentiment: mapApiSentiment(
-      citation.sentiment,
-    ),
-    relevance:
-      typeof citation.relevance ===
-      "number"
-        ? citation.relevance
-        : Math.max(
-            50,
-            95 - citation.index * 5,
-          ),
-  }));
-
   return {
+    // A 200 with a null answer is a legitimate outcome (nothing relevant
+    // found, or an empty workspace) and carries its own explanation.
     content:
-      data.answer ||
+      data?.answer ||
+      data?.message ||
       "I could not find an answer based on your current feedback data.",
-    evidence,
-    themes: [],
-    confidence: 0,
+    evidence: toEvidence(
+      data?.citations ?? [],
+    ),
+    retrieval: data?.retrieval,
   };
 }
 
@@ -246,6 +324,11 @@ export default function AskLoopPage() {
   const [toastMessage, setToastMessage] =
     useState<ToastMessage | null>(null);
 
+  // Real workspace counts, so the header stats reflect actual data instead of
+  // hardcoded placeholder numbers.
+  const [totalFeedback, setTotalFeedback] =
+    useState<number | null>(null);
+
   const chatBottomRef =
     useRef<HTMLDivElement | null>(null);
 
@@ -272,6 +355,46 @@ export default function AskLoopPage() {
       window.clearTimeout(timeout);
     };
   }, [toastMessage]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const response = await fetch(
+          "/api/feedback?limit=1",
+        );
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!cancelled) {
+          setTotalFeedback(
+            data?.meta?.total ?? null,
+          );
+        }
+      } catch {
+        // Non-critical: the stat just stays blank.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Retrieval info from the most recent answer, used for the "searchable"
+  // header stat.
+  const lastRetrieval = useMemo(() => {
+    for (
+      let i = messages.length - 1;
+      i >= 0;
+      i--
+    ) {
+      const retrieval =
+        messages[i].retrieval;
+      if (retrieval) return retrieval;
+    }
+    return null;
+  }, [messages]);
 
   const conversationStats = useMemo(() => {
     const userQuestions = messages.filter(
@@ -369,14 +492,7 @@ export default function AskLoopPage() {
           answer.evidence.length > 0
             ? answer.evidence
             : undefined,
-        themes:
-          answer.themes.length > 0
-            ? answer.themes
-            : undefined,
-        confidence:
-          answer.confidence > 0
-            ? answer.confidence
-            : undefined,
+        retrieval: answer.retrieval,
         createdAt: new Date().toISOString(),
       };
 
@@ -385,18 +501,31 @@ export default function AskLoopPage() {
         assistantMessage,
       ]);
     } catch (error) {
-      showToast(
-        "error",
-        error instanceof Error
-          ? error.message
-          : "Ask LOOP could not answer that question.",
-      );
+      const failure = error as Error & {
+        evidence?: Evidence[];
+        retrieval?: RetrievalInfo;
+      };
 
+      const message =
+        error instanceof Error
+          ? failure.message
+          : "Ask LOOP could not answer that question.";
+
+      showToast("error", message);
+
+      // If the failure still carried retrieved feedback (AI down, but search
+      // worked), show it. The message states plainly that no answer was
+      // generated rather than presenting anything invented as an answer.
       const assistantMessage: ChatMessage = {
         id: createMessageId(),
         role: "assistant",
-        content:
-          "Something went wrong answering that question. Please try again.",
+        content: message,
+        evidence:
+          failure.evidence &&
+          failure.evidence.length > 0
+            ? failure.evidence
+            : undefined,
+        retrieval: failure.retrieval,
         createdAt: new Date().toISOString(),
       };
 
@@ -593,20 +722,23 @@ export default function AskLoopPage() {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3 lg:w-[430px] lg:grid-cols-1">
+            <div className="grid gap-3 sm:grid-cols-2 lg:w-[430px] lg:grid-cols-1">
               <HeroStat
-                value="1,248"
+                value={
+                  totalFeedback === null
+                    ? "—"
+                    : totalFeedback.toLocaleString()
+                }
                 label="Feedback records"
               />
 
               <HeroStat
-                value="12"
-                label="Active themes"
-              />
-
-              <HeroStat
-                value="94%"
-                label="AI confidence"
+                value={
+                  lastRetrieval
+                    ? lastRetrieval.searchable.toLocaleString()
+                    : "—"
+                }
+                label="Searchable by AI"
               />
             </div>
           </div>
@@ -755,29 +887,54 @@ export default function AskLoopPage() {
                         </div>
                       )}
 
-                    {typeof message.confidence ===
-                      "number" && (
-                      <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs font-bold text-slate-600">
-                            Answer confidence
-                          </p>
+                    {message.retrieval
+                      ?.mode === "recency" &&
+                      message.retrieval
+                        .totalFeedback > 0 && (
+                        <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold leading-5 text-amber-800">
+                          Showing the most recent
+                          feedback rather than
+                          semantic matches — none
+                          of this workspace&apos;s{" "}
+                          {
+                            message.retrieval
+                              .totalFeedback
+                          }{" "}
+                          records have a usable
+                          embedding yet, so
+                          relevance could not be
+                          scored. Run
+                          reclassification to
+                          index them.
+                        </p>
+                      )}
 
-                          <p className="text-xs font-black text-blue-700">
-                            {message.confidence}%
-                          </p>
-                        </div>
-
-                        <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
-                          <div
-                            className="h-full rounded-full bg-gradient-to-r from-blue-600 to-violet-600"
-                            style={{
-                              width: `${message.confidence}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    )}
+                    {message.retrieval?.mode ===
+                      "semantic" &&
+                      message.retrieval
+                        .searchable > 0 &&
+                      message.retrieval
+                        .searchable <
+                        message.retrieval
+                          .totalFeedback && (
+                        <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold leading-5 text-amber-800">
+                          Searched{" "}
+                          {
+                            message.retrieval
+                              .searchable
+                          }{" "}
+                          of{" "}
+                          {
+                            message.retrieval
+                              .totalFeedback
+                          }{" "}
+                          feedback records. The
+                          rest have no usable
+                          embedding yet, so this
+                          answer may be
+                          incomplete.
+                        </p>
+                      )}
 
                     {message.evidence &&
                       message.evidence.length >
@@ -846,10 +1003,10 @@ export default function AskLoopPage() {
                                         </span>
 
                                         <span className="text-[10px] font-semibold text-slate-400">
-                                          {
-                                            evidence.relevance
-                                          }
-                                          % relevance
+                                          {typeof evidence.relevance ===
+                                          "number"
+                                            ? `${evidence.relevance}% relevance`
+                                            : "relevance unavailable"}
                                         </span>
                                       </div>
                                     </div>
@@ -1223,34 +1380,75 @@ export default function AskLoopPage() {
                   Knowledge Base
                 </h2>
 
-                <span className="flex items-center gap-2 text-xs font-bold text-emerald-700">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  Ready
-                </span>
+                {lastRetrieval && (
+                  <span
+                    className={`flex items-center gap-2 text-xs font-bold ${
+                      lastRetrieval.mode ===
+                      "semantic"
+                        ? "text-emerald-700"
+                        : "text-amber-700"
+                    }`}
+                  >
+                    <span
+                      className={`h-2 w-2 rounded-full ${
+                        lastRetrieval.mode ===
+                        "semantic"
+                          ? "bg-emerald-500"
+                          : "bg-amber-500"
+                      }`}
+                    />
+                    {lastRetrieval.mode ===
+                    "semantic"
+                      ? "Semantic search"
+                      : lastRetrieval.mode ===
+                          "no_match"
+                        ? "No match"
+                        : "Not indexed"}
+                  </span>
+                )}
               </div>
 
               <div className="mt-5 grid grid-cols-2 gap-3">
                 <KnowledgeCard
-                  value="1,248"
+                  value={
+                    totalFeedback === null
+                      ? "—"
+                      : totalFeedback.toLocaleString()
+                  }
                   label="Feedback records"
                   tone="blue"
                 />
 
                 <KnowledgeCard
-                  value="12"
-                  label="Active themes"
+                  value={
+                    lastRetrieval
+                      ? lastRetrieval.searchable.toLocaleString()
+                      : "—"
+                  }
+                  label="Searchable by AI"
                   tone="violet"
                 />
 
                 <KnowledgeCard
-                  value="5"
-                  label="Data sources"
+                  value={
+                    lastRetrieval
+                      ? lastRetrieval.used.toLocaleString()
+                      : "—"
+                  }
+                  label="Cited in last answer"
                   tone="emerald"
                 />
 
                 <KnowledgeCard
-                  value="94%"
-                  label="AI confidence"
+                  value={
+                    lastRetrieval
+                      ? (
+                          lastRetrieval.skippedIncompatible +
+                          lastRetrieval.skippedUnreadable
+                        ).toLocaleString()
+                      : "—"
+                  }
+                  label="Needs reindexing"
                   tone="amber"
                 />
               </div>
