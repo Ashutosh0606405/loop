@@ -46,6 +46,9 @@ JSON Schema:
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: { responseMimeType: "application/json" },
           }),
+          // Bounded so a hanging upstream can't stall the ingest request
+          // indefinitely — this now runs inline on POST /api/feedback.
+          signal: AbortSignal.timeout(20_000),
         },
       );
 
@@ -143,13 +146,16 @@ JSON Schema:
   }
 
   // Generate and store a vector embedding for this feedback item so
-  // Ask LOOP can find it later via semantic search. Never let a failure
-  // here break the classification response.
-  await embedAndStoreFeedback(feedback.id, feedback.content);
+  // Ask LOOP can find it later via semantic search. A failure here must not
+  // break classification, but callers need to know it happened — otherwise
+  // an item silently stays invisible to semantic search forever.
+  const embedded = await embedAndStoreFeedback(feedback.id, feedback.content);
 
   return {
     feedback: updatedFeedback,
     themes: extractedThemes,
     aiEngine: aiEngineUsed,
+    classifiedByAI,
+    embedded,
   };
 }

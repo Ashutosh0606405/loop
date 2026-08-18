@@ -30,6 +30,16 @@ type Evidence = {
   relevance: number | null;
 };
 
+type RetrievalInfo = {
+  mode: "semantic" | "recency" | "no_match";
+  totalFeedback: number;
+  searchable: number;
+  skippedIncompatible: number;
+  skippedUnreadable: number;
+  belowThreshold: number;
+  used: number;
+};
+
 type ChatMessage = {
   id: string;
   role: "user" | "assistant";
@@ -37,6 +47,7 @@ type ChatMessage = {
   createdAt: string;
   evidence?: Evidence[];
   engine?: string;
+  retrieval?: RetrievalInfo;
 };
 
 type ToastMessage = {
@@ -58,16 +69,19 @@ type AskLoopCitation = {
 };
 
 type AskLoopResponse = {
-  answer?: string;
+  answer?: string | null;
   citations?: AskLoopCitation[];
-  aiEngine?: string;
+  retrieval?: RetrievalInfo;
+  aiEngine?: string | null;
   error?: string;
+  message?: string;
 };
 
 type AnswerResult = {
   content: string;
   evidence: Evidence[];
   engine?: string;
+  retrieval?: RetrievalInfo;
 };
 
 const maximumQuestionLength = 500;
@@ -137,9 +151,9 @@ function mapApiSentiment(
   return "Unclassified";
 }
 
-async function readJsonSafely<T>(
+async function readJson(
   response: Response,
-): Promise<T | null> {
+): Promise<AskLoopResponse | null> {
   const text =
     await response.text();
 
@@ -148,10 +162,78 @@ async function readJsonSafely<T>(
   }
 
   try {
-    return JSON.parse(text) as T;
+    return JSON.parse(
+      text,
+    ) as AskLoopResponse;
   } catch {
     return null;
   }
+}
+
+function describeHttpError(
+  status: number,
+  data: AskLoopResponse | null,
+) {
+  if (status === 401) {
+    return "Your session has expired. Please sign in again.";
+  }
+
+  if (status === 403) {
+    return "You do not have permission to use Ask LOOP.";
+  }
+
+  if (status === 400) {
+    return (
+      data?.message ||
+      data?.error ||
+      "That question could not be processed. Try rephrasing it."
+    );
+  }
+
+  if (data?.message) {
+    return data.message;
+  }
+
+  if (status >= 500) {
+    return "Ask LOOP is temporarily unavailable. Please try again shortly.";
+  }
+
+  return (
+    data?.error ||
+    "Ask LOOP could not answer that question."
+  );
+}
+
+function toEvidence(
+  citations: AskLoopCitation[],
+): Evidence[] {
+  return citations.map(
+    (citation) => ({
+      id: citation.id,
+
+      quote:
+        citation.content,
+
+      customer:
+        citation.customer ||
+        "Anonymous Customer",
+
+      source:
+        citation.channel ||
+        "Customer Feedback",
+
+      sentiment:
+        mapApiSentiment(
+          citation.sentiment,
+        ),
+
+      relevance:
+        typeof citation.relevance ===
+        "number"
+          ? citation.relevance
+          : null,
+    }),
+  );
 }
 
 async function fetchAskLoopAnswer(
@@ -171,63 +253,64 @@ async function fetchAskLoopAnswer(
         question,
         mode,
       }),
+
+      signal:
+        AbortSignal.timeout(
+          45_000,
+        ),
     });
 
   const data =
-    await readJsonSafely<AskLoopResponse>(
+    await readJson(
       response,
     );
 
   if (!response.ok) {
-    throw new Error(
-      data?.error ||
-        "Ask LOOP could not answer that question.",
-    );
+    const error = new Error(
+      describeHttpError(
+        response.status,
+        data,
+      ),
+    ) as Error & {
+      evidence?: Evidence[];
+      retrieval?: RetrievalInfo;
+    };
+
+    if (
+      data?.citations &&
+      data.citations.length > 0
+    ) {
+      error.evidence =
+        toEvidence(
+          data.citations,
+        );
+
+      error.retrieval =
+        data.retrieval;
+    }
+
+    throw error;
   }
 
-  if (!data?.answer?.trim()) {
-    throw new Error(
-      "Ask LOOP returned an empty answer.",
-    );
-  }
-
-  const evidence: Evidence[] =
-    (data.citations ?? []).map(
-      (citation) => ({
-        id: citation.id,
-
-        quote:
-          citation.content,
-
-        customer:
-          citation.customer ||
-          "Anonymous Customer",
-
-        source:
-          citation.channel ||
-          "Customer Feedback",
-
-        sentiment:
-          mapApiSentiment(
-            citation.sentiment,
-          ),
-
-        relevance:
-          typeof citation.relevance ===
-          "number"
-            ? citation.relevance
-            : null,
-      }),
-    );
+  const content =
+    data?.answer?.trim() ||
+    data?.message?.trim() ||
+    "I could not find an answer based on your current feedback data.";
 
   return {
-    content:
-      data.answer.trim(),
+    content,
 
-    evidence,
+    evidence:
+      toEvidence(
+        data?.citations ?? [],
+      ),
 
     engine:
-      data.aiEngine,
+      data?.aiEngine ||
+      undefined,
+
+    retrieval:
+      data?.retrieval,
   };
 }
 
@@ -340,6 +423,14 @@ export default function AskLoopPage() {
       ToastMessage | null
     >(null);
 
+  const [
+    totalFeedback,
+    setTotalFeedback,
+  ] =
+    useState<number | null>(
+      null,
+    );
+
   const chatBottomRef =
     useRef<HTMLDivElement | null>(
       null,
@@ -383,6 +474,72 @@ export default function AskLoopPage() {
       );
     };
   }, [toastMessage]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const response =
+          await fetch(
+            "/api/feedback?limit=1",
+            {
+              cache: "no-store",
+            },
+          );
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data =
+          (await response.json()) as {
+            meta?: {
+              total?: number;
+            };
+          };
+
+        if (!cancelled) {
+          setTotalFeedback(
+            typeof data.meta
+              ?.total === "number"
+              ? data.meta.total
+              : null,
+          );
+        }
+      } catch {
+        if (!cancelled) {
+          setTotalFeedback(
+            null,
+          );
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const lastRetrieval =
+    useMemo(() => {
+      for (
+        let index =
+          messages.length - 1;
+        index >= 0;
+        index -= 1
+      ) {
+        const retrieval =
+          messages[index]
+            .retrieval;
+
+        if (retrieval) {
+          return retrieval;
+        }
+      }
+
+      return null;
+    }, [messages]);
 
   const conversationStats =
     useMemo(() => {
@@ -519,6 +676,9 @@ export default function AskLoopPage() {
 
           engine:
             answer.engine,
+
+          retrieval:
+            answer.retrieval,
         };
 
       setMessages(
@@ -528,9 +688,15 @@ export default function AskLoopPage() {
         ],
       );
     } catch (error) {
+      const failure =
+        error as Error & {
+          evidence?: Evidence[];
+          retrieval?: RetrievalInfo;
+        };
+
       const message =
         error instanceof Error
-          ? error.message
+          ? failure.message
           : "Ask LOOP could not answer that question.";
 
       showToast(
@@ -538,22 +704,35 @@ export default function AskLoopPage() {
         message,
       );
 
+      const assistantMessage: ChatMessage =
+        {
+          id:
+            createMessageId(),
+
+          role:
+            "assistant",
+
+          content:
+            message,
+
+          createdAt:
+            new Date().toISOString(),
+
+          evidence:
+            failure.evidence &&
+            failure.evidence
+              .length > 0
+              ? failure.evidence
+              : undefined,
+
+          retrieval:
+            failure.retrieval,
+        };
+
       setMessages(
         (previous) => [
           ...previous,
-          {
-            id:
-              createMessageId(),
-
-            role:
-              "assistant",
-
-            content:
-              "I could not complete that request. Please try again after checking the workspace feedback service.",
-
-            createdAt:
-              new Date().toISOString(),
-          },
+          assistantMessage,
         ],
       );
     } finally {
@@ -703,26 +882,24 @@ export default function AskLoopPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 sm:min-w-[330px]">
+            <div className="grid grid-cols-2 gap-2 sm:min-w-[330px]">
               <HeaderMetric
                 value={
-                  conversationStats.questions
+                  totalFeedback ===
+                  null
+                    ? "—"
+                    : totalFeedback.toLocaleString()
                 }
-                label="Questions"
+                label="Feedback records"
               />
 
               <HeaderMetric
                 value={
-                  conversationStats.answers
+                  lastRetrieval
+                    ? lastRetrieval.searchable.toLocaleString()
+                    : "—"
                 }
-                label="Answers"
-              />
-
-              <HeaderMetric
-                value={
-                  conversationStats.evidence
-                }
-                label="Citations"
+                label="Searchable by AI"
               />
             </div>
           </div>
@@ -1212,6 +1389,49 @@ function MessageBubble({
           {message.content}
         </p>
 
+        {message.retrieval
+          ?.mode === "recency" &&
+          message.retrieval
+            .totalFeedback > 0 && (
+            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[9px] leading-5 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-300">
+              Semantic search is
+              not available for
+              this workspace yet,
+              so recent feedback
+              was used instead.
+              Relevance scores are
+              unavailable for this
+              answer.
+            </div>
+          )}
+
+        {message.retrieval
+          ?.mode === "semantic" &&
+          message.retrieval
+            .searchable > 0 &&
+          message.retrieval
+            .searchable <
+            message.retrieval
+              .totalFeedback && (
+            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[9px] leading-5 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-300">
+              Searched{" "}
+              {
+                message.retrieval
+                  .searchable
+              }{" "}
+              of{" "}
+              {
+                message.retrieval
+                  .totalFeedback
+              }{" "}
+              feedback records.
+              Some records are not
+              searchable yet, so
+              this answer may be
+              incomplete.
+            </div>
+          )}
+
         {message.engine && (
           <p className="mt-3 text-[8px] text-slate-400">
             Engine:{" "}
@@ -1375,7 +1595,7 @@ function HeaderMetric({
   value,
   label,
 }: {
-  value: number;
+  value: number | string;
   label: string;
 }) {
   return (

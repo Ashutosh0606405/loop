@@ -86,6 +86,15 @@ type FeedbackListResponse = {
 type FeedbackMutationResponse = {
   count?: number;
   error?: string;
+  classification?: {
+    ok?: boolean;
+    classifiedByAI?: boolean;
+    embedded?: boolean;
+    themes?: string[];
+    error?: string | null;
+    pending?: number;
+    note?: string;
+  };
 };
 
 const pageLimit = 15;
@@ -1073,14 +1082,25 @@ export default function FeedbackPage() {
 
       closeFeedbackForm();
 
-      setAlertMessage(
-        {
-          type: "success",
+      // Report what actually happened rather than assuming the AI ran. An item
+      // that failed to embed won't be findable by Ask LOOP, and the user
+      // should know that at the moment it happens.
+      const classification =
+        data?.classification;
 
-          message:
-            "Feedback saved successfully.",
-        },
-      );
+      setAlertMessage({
+        type:
+          classification?.embedded
+            ? "success"
+            : "info",
+
+        message:
+          !classification?.ok
+            ? "Feedback saved, but AI classification failed. It will not appear in Ask LOOP until it is reclassified."
+            : classification.embedded
+              ? "Feedback saved and classified."
+              : "Feedback saved and classified, but the search index could not be updated. It will not appear in Ask LOOP until it is reclassified.",
+      });
 
       setLoading(true);
 
@@ -1296,9 +1316,9 @@ export default function FeedbackPage() {
 
               setAlertMessage(
                 {
-                  type: "success",
+                  type: "info",
 
-                  message: `${data?.count ?? parsedItems.length} feedback entries imported successfully.`,
+                  message: `${data?.count ?? parsedItems.length} feedback entries imported. They are not classified or searchable in Ask LOOP yet — reclassification is required before they can be indexed.`,
                 },
               );
 
