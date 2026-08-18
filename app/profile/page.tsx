@@ -1,933 +1,454 @@
 "use client";
 
-import Image from "next/image";
+import Link from "next/link";
+
+import {
+  useSession,
+} from "next-auth/react";
+
 import {
   useMemo,
-  useRef,
-  useState,
-  type ChangeEvent,
+  type ReactNode,
 } from "react";
 
 import LoopShell from "../../components/LoopShell";
 
-type ProfileData = {
-  fullName: string;
-  role: string;
-  email: string;
-  mobile: string;
-  location: string;
-  bio: string;
+type SessionUser = {
+  id?: string;
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+  role?: string | null;
+  workspaceId?: string | null;
 };
-
-const initialProfile: ProfileData = {
-  fullName: "Lakshmipriya D",
-  role: "Analyst",
-  email: "lakshmipriyad219@gmail.com",
-  mobile: "+91 96774 79492",
-  location: "Theni, Tamil Nadu",
-  bio: "Frontend contributor working on customer feedback interfaces, authentication screens and responsive user experiences for Project LOOP.",
-};
-
-const skills = [
-  "Next.js",
-  "React",
-  "TypeScript",
-  "Tailwind CSS",
-  "Git",
-  "Frontend Development",
-];
-
-const maximumPhotoSize = 2 * 1024 * 1024;
 
 export default function ProfilePage() {
-  const fileInputRef =
-    useRef<HTMLInputElement>(null);
+  const {
+    data: session,
+    status,
+  } = useSession();
 
-  const [profile, setProfile] =
-    useState<ProfileData>(initialProfile);
+  const user =
+    session?.user as
+      | SessionUser
+      | undefined;
 
-  const [draftProfile, setDraftProfile] =
-    useState<ProfileData>(initialProfile);
+  const displayName =
+    user?.name?.trim() ||
+    user?.email?.trim() ||
+    "LOOP User";
 
-  const [profileImage, setProfileImage] =
-    useState<string | null>(null);
+  const email =
+    user?.email?.trim() || "";
 
-  const [
-    draftProfileImage,
-    setDraftProfileImage,
-  ] = useState<string | null>(null);
-
-  const [
-    hasPendingPhotoChange,
-    setHasPendingPhotoChange,
-  ] = useState(false);
-
-  const [
-    selectedPhotoName,
-    setSelectedPhotoName,
-  ] = useState("");
-
-  const [photoError, setPhotoError] =
-    useState("");
-
-  const [photoMessage, setPhotoMessage] =
-    useState("");
-
-  const [isEditing, setIsEditing] =
-    useState(false);
-
-  const [savedMessage, setSavedMessage] =
-    useState("");
-
-  const profileInitials = useMemo(() => {
-    const initials = profile.fullName
-      .split(" ")
-      .filter(Boolean)
-      .map((word) => word.charAt(0))
-      .join("")
-      .slice(0, 2)
-      .toUpperCase();
-
-    return initials || "LP";
-  }, [profile.fullName]);
-
-  const visibleProfileImage =
-    hasPendingPhotoChange
-      ? draftProfileImage
-      : profileImage;
-
-  const profileCompletion = useMemo(() => {
-    const values = Object.values(profile);
-
-    const completedValues = values.filter(
-      (value) => value.trim().length > 0,
+  const role =
+    formatRole(
+      user?.role,
     );
 
-    const totalFields = values.length + 1;
-
-    const completedFields =
-      completedValues.length +
-      (profileImage ? 1 : 0);
-
-    return Math.round(
-      (completedFields / totalFields) * 100,
-    );
-  }, [profile, profileImage]);
-
-  function clearPhotoMessages() {
-    setPhotoError("");
-    setPhotoMessage("");
-  }
-
-  function showPhotoSuccess(message: string) {
-    setPhotoError("");
-    setPhotoMessage(message);
-
-    window.setTimeout(() => {
-      setPhotoMessage("");
-    }, 3000);
-  }
-
-  function openPhotoPicker() {
-    clearPhotoMessages();
-
-    fileInputRef.current?.click();
-  }
-
-  function handlePhotoSelection(
-    event: ChangeEvent<HTMLInputElement>,
-  ) {
-    const file = event.target.files?.[0];
-
-    clearPhotoMessages();
-
-    if (!file) {
-      return;
-    }
-
-    const supportedTypes = [
-      "image/jpeg",
-      "image/png",
-    ];
-
-    if (!supportedTypes.includes(file.type)) {
-      setPhotoError(
-        "Only JPG and PNG images are allowed.",
-      );
-
-      event.target.value = "";
-      return;
-    }
-
-    if (file.size > maximumPhotoSize) {
-      setPhotoError(
-        "Profile photo must be smaller than 2 MB.",
-      );
-
-      event.target.value = "";
-      return;
-    }
-
-    const fileReader = new FileReader();
-
-    fileReader.onload = () => {
-      if (
-        typeof fileReader.result !== "string"
-      ) {
-        setPhotoError(
-          "Unable to preview the selected photo.",
-        );
-        return;
-      }
-
-      setDraftProfileImage(
-        fileReader.result,
-      );
-
-      setSelectedPhotoName(file.name);
-      setHasPendingPhotoChange(true);
-
-      setPhotoMessage(
-        "Photo preview is ready. Click Save Photo to confirm.",
-      );
-    };
-
-    fileReader.onerror = () => {
-      setPhotoError(
-        "Unable to read the selected photo.",
-      );
-    };
-
-    fileReader.readAsDataURL(file);
-
-    event.target.value = "";
-  }
-
-  function handleSavePhoto() {
-    setProfileImage(draftProfileImage);
-    setHasPendingPhotoChange(false);
-    setSelectedPhotoName("");
-
-    if (draftProfileImage) {
-      showPhotoSuccess(
-        "Profile photo updated successfully.",
-      );
-    } else {
-      showPhotoSuccess(
-        "Profile photo removed successfully.",
-      );
-    }
-  }
-
-  function handleCancelPhoto() {
-    setDraftProfileImage(profileImage);
-    setHasPendingPhotoChange(false);
-    setSelectedPhotoName("");
-    clearPhotoMessages();
-  }
-
-  function handleRemovePhoto() {
-    clearPhotoMessages();
-
-    setDraftProfileImage(null);
-    setSelectedPhotoName("");
-
-    if (profileImage) {
-      setHasPendingPhotoChange(true);
-
-      setPhotoMessage(
-        "Photo will be removed after you click Save Photo.",
-      );
-    } else {
-      setHasPendingPhotoChange(false);
-
-      setPhotoMessage(
-        "Selected photo removed.",
-      );
-    }
-  }
-
-  function handleEditProfile() {
-    setDraftProfile(profile);
-    setSavedMessage("");
-    setIsEditing(true);
-  }
-
-  function handleCancelEdit() {
-    setDraftProfile(profile);
-    setSavedMessage("");
-    setIsEditing(false);
-  }
-
-  function handleSaveProfile() {
-    if (
-      !draftProfile.fullName.trim() ||
-      !draftProfile.email.trim()
-    ) {
-      setSavedMessage(
-        "Full name and email address are required.",
-      );
-      return;
-    }
-
-    setProfile(draftProfile);
-    setIsEditing(false);
-
-    setSavedMessage(
-      "Profile details updated successfully.",
+  const initials =
+    useMemo(
+      () =>
+        getInitials(
+          displayName,
+        ),
+      [displayName],
     );
 
-    window.setTimeout(() => {
-      setSavedMessage("");
-    }, 3000);
-  }
+  const workspaceConnected =
+    Boolean(
+      user?.workspaceId,
+    );
 
-  function updateDraft(
-    field: keyof ProfileData,
-    value: string,
-  ) {
-    setDraftProfile((previous) => ({
-      ...previous,
-      [field]: value,
-    }));
-  }
+  const isLoading =
+    status === "loading";
+
+  const isAuthenticated =
+    status ===
+      "authenticated" &&
+    Boolean(user);
 
   return (
     <LoopShell
-      title="My Profile"
-      description="View and manage your personal information."
+      title="Profile"
+      subtitle="View your signed-in LOOP account and workspace access."
     >
-      <div className="mx-auto max-w-6xl space-y-6">
-        {/* Profile Hero */}
-        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="relative h-40 overflow-hidden bg-gradient-to-r from-blue-700 via-indigo-700 to-violet-700 sm:h-48">
-            <div className="absolute -left-16 top-4 h-52 w-52 rounded-full bg-white/10 blur-2xl" />
+      <div className="mx-auto max-w-6xl space-y-5">
+        {isLoading ? (
+          <ProfileSkeleton />
+        ) : !isAuthenticated ? (
+          <SignedOutState />
+        ) : (
+          <>
+            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-950/[0.02] dark:border-slate-800 dark:bg-slate-900">
+              <div className="relative overflow-hidden bg-[#0b1220] px-6 py-8 sm:px-8 sm:py-10">
+                <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-blue-600/20 blur-3xl" />
 
-            <div className="absolute -right-12 bottom-0 h-56 w-56 rounded-full bg-fuchsia-400/20 blur-3xl" />
+                <div className="pointer-events-none absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-violet-600/15 blur-3xl" />
 
-            <div className="absolute left-1/2 top-1/2 h-36 w-36 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/10" />
+                <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-2xl font-semibold text-white shadow-xl">
+                      {initials}
+                    </div>
 
-            <div className="absolute right-8 top-8 hidden rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-white backdrop-blur sm:block">
-              <p className="text-xs font-semibold uppercase tracking-widest text-blue-100">
-                Workspace
-              </p>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+                          {displayName}
+                        </h2>
 
-              <p className="mt-1 font-bold">
-                Project LOOP
-              </p>
-            </div>
-          </div>
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-semibold text-emerald-300">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
 
-          <div className="relative px-6 pb-7 sm:px-8">
-            <div className="-mt-14 flex flex-col gap-5 sm:-mt-16 sm:flex-row sm:items-end sm:justify-between">
-              <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-end">
-                {/* Profile Photo */}
-                <div className="group relative">
-                  <div className="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-3xl border-4 border-white bg-gradient-to-br from-blue-600 to-violet-600 text-4xl font-black text-white shadow-xl sm:h-32 sm:w-32">
-                    {visibleProfileImage ? (
-                      <Image
-                        src={visibleProfileImage}
-                        alt={`${profile.fullName} profile`}
-                        fill
-                        unoptimized
-                        sizes="128px"
-                        className="object-cover"
-                      />
-                    ) : (
-                      <span>{profileInitials}</span>
-                    )}
+                          Signed in
+                        </span>
+                      </div>
 
-                    <div className="absolute inset-0 bg-slate-950/0 transition group-hover:bg-slate-950/25" />
+                      <p className="mt-2 text-sm text-slate-400">
+                        {role}
+                      </p>
+
+                      {email && (
+                        <p className="mt-1 text-xs text-slate-500">
+                          {email}
+                        </p>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Camera Button */}
-                  <button
-                    type="button"
-                    onClick={openPhotoPicker}
-                    aria-label="Upload profile photo"
-                    className="absolute -bottom-2 -right-2 flex h-11 w-11 items-center justify-center rounded-2xl border-4 border-white bg-slate-950 text-white shadow-lg transition hover:scale-105 hover:bg-blue-600"
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      className="h-5 w-5"
-                      aria-hidden="true"
+                  <div className="flex flex-wrap gap-2">
+                    <Link
+                      href="/settings"
+                      className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-xs font-semibold text-white transition hover:bg-white/10"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M4 8.5h3l1.5-2h7l1.5 2h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Z"
-                      />
+                      <SettingsIcon />
 
-                      <circle
-                        cx="12"
-                        cy="14"
-                        r="3.5"
-                      />
-                    </svg>
-                  </button>
+                      Settings
+                    </Link>
 
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png"
-                    onChange={
-                      handlePhotoSelection
+                    <Link
+                      href="/dashboard"
+                      className="inline-flex h-10 items-center gap-2 rounded-xl bg-white px-4 text-xs font-semibold text-slate-950 transition hover:bg-slate-100"
+                    >
+                      Dashboard
+
+                      <ArrowIcon />
+                    </Link>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-px bg-slate-200 dark:bg-slate-800 sm:grid-cols-3">
+                <ProfileStat
+                  label="Workspace role"
+                  value={role}
+                  icon={
+                    <RoleIcon />
+                  }
+                />
+
+                <ProfileStat
+                  label="Account"
+                  value="Signed in"
+                  icon={
+                    <AccountIcon />
+                  }
+                />
+
+                <ProfileStat
+                  label="Workspace"
+                  value={
+                    workspaceConnected
+                      ? "Connected"
+                      : "Not available"
+                  }
+                  icon={
+                    <WorkspaceIcon />
+                  }
+                />
+              </div>
+            </section>
+
+            <section className="grid gap-5 lg:grid-cols-[1.25fr_0.75fr]">
+              <Panel
+                title="Account information"
+                description="Identity information available from your current authenticated session."
+              >
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <InformationCard
+                    label="Display name"
+                    value={
+                      user?.name?.trim() ||
+                      "Not provided"
                     }
-                    className="hidden"
+                    icon={
+                      <UserIcon />
+                    }
+                  />
+
+                  <InformationCard
+                    label="Email address"
+                    value={
+                      email ||
+                      "Not provided"
+                    }
+                    icon={
+                      <MailIcon />
+                    }
+                  />
+
+                  <InformationCard
+                    label="Workspace role"
+                    value={role}
+                    icon={
+                      <RoleIcon />
+                    }
+                  />
+
+                  <InformationCard
+                    label="Session status"
+                    value="Authenticated"
+                    icon={
+                      <CheckIcon />
+                    }
                   />
                 </div>
 
-                {/* User Details */}
-                <div className="pb-1 text-center sm:text-left">
-                  <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-                    <h2 className="text-2xl font-bold text-slate-950 sm:text-3xl">
-                      {profile.fullName}
-                    </h2>
-
-                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
-                      Active
+                <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50/60 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
+                  <div className="flex gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                      <InfoIcon />
                     </span>
+
+                    <div>
+                      <p className="text-xs font-semibold text-slate-900 dark:text-white">
+                        Profile data source
+                      </p>
+
+                      <p className="mt-1 text-[11px] leading-5 text-slate-600 dark:text-slate-400">
+                        This page displays information from your authenticated LOOP session. It does not create local placeholder profile details.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </Panel>
+
+              <div className="space-y-5">
+                <Panel
+                  title="Workspace access"
+                  description="Your current connection to the LOOP workspace."
+                >
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                          workspaceConnected
+                            ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300"
+                            : "bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500"
+                        }`}
+                      >
+                        <WorkspaceIcon />
+                      </span>
+
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-slate-900 dark:text-white">
+                          {workspaceConnected
+                            ? "Workspace connected"
+                            : "Workspace unavailable"}
+                        </p>
+
+                        <p className="mt-1 text-[10px] leading-5 text-slate-500 dark:text-slate-400">
+                          {workspaceConnected
+                            ? "Your authenticated session is linked to a LOOP workspace."
+                            : "No workspace identifier is available in the current session."}
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
-                  <p className="mt-1 text-base font-medium text-slate-500">
-                    {profile.role} · Project LOOP
-                  </p>
+                  <div className="mt-4 rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                        Access role
+                      </span>
 
-                  <p className="mt-2 flex items-center justify-center gap-2 text-sm text-slate-500 sm:justify-start">
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      className="h-4 w-4"
-                      aria-hidden="true"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"
-                      />
+                      <span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                        {role}
+                      </span>
+                    </div>
+                  </div>
+                </Panel>
 
-                      <circle
-                        cx="12"
-                        cy="10"
-                        r="2.5"
-                      />
-                    </svg>
-
-                    {profile.location}
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={openPhotoPicker}
-                    className="mt-3 text-sm font-bold text-blue-700 transition hover:text-violet-700 sm:hidden"
-                  >
-                    Change profile photo
-                  </button>
-                </div>
-              </div>
-
-              {!isEditing && (
-                <button
-                  type="button"
-                  onClick={handleEditProfile}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-slate-800"
+                <Panel
+                  title="Quick access"
+                  description="Continue working in your workspace."
                 >
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    className="h-5 w-5"
-                    aria-hidden="true"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="m14 5 5 5M4 20l4.5-1 10-10a2 2 0 0 0-5-5l-10 10L4 20Z"
+                  <div className="space-y-2">
+                    <QuickLink
+                      href="/dashboard"
+                      title="Dashboard"
+                      description="View workspace feedback metrics."
+                      icon={
+                        <DashboardIcon />
+                      }
                     />
-                  </svg>
 
-                  Edit Profile
-                </button>
-              )}
-            </div>
-          </div>
-        </section>
+                    <QuickLink
+                      href="/feedback"
+                      title="Feedback"
+                      description="Search and review customer feedback."
+                      icon={
+                        <FeedbackIcon />
+                      }
+                    />
 
-        {/* Profile Photo Management */}
-        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="grid gap-6 p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-50 to-violet-100 text-blue-700">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  className="h-6 w-6"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M4 8.5h3l1.5-2h7l1.5 2h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Z"
-                  />
+                    <QuickLink
+                      href="/ask-loop"
+                      title="Ask LOOP"
+                      description="Ask questions against workspace feedback."
+                      icon={
+                        <SparkleIcon />
+                      }
+                    />
 
-                  <circle
-                    cx="12"
-                    cy="14"
-                    r="3.5"
-                  />
-                </svg>
-              </span>
-
-              <div>
-                <h3 className="text-lg font-bold text-slate-950">
-                  Profile Picture
-                </h3>
-
-                <p className="mt-1 text-sm leading-6 text-slate-500">
-                  Upload a clear JPG or PNG image.
-                  Maximum file size is 2 MB.
-                </p>
-
-                {selectedPhotoName && (
-                  <p className="mt-2 max-w-md truncate text-xs font-semibold text-blue-700">
-                    Selected: {selectedPhotoName}
-                  </p>
-                )}
+                    <QuickLink
+                      href="/reports"
+                      title="Reports"
+                      description="Explore feedback trends and summaries."
+                      icon={
+                        <ReportIcon />
+                      }
+                    />
+                  </div>
+                </Panel>
               </div>
-            </div>
+            </section>
 
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={openPhotoPicker}
-                className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-3 text-sm font-bold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
-              >
-                {visibleProfileImage
-                  ? "Change Photo"
-                  : "Upload Photo"}
-              </button>
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-950/[0.02] dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+                    <LockIcon />
+                  </span>
 
-              {visibleProfileImage && (
-                <button
-                  type="button"
-                  onClick={handleRemovePhoto}
-                  className="rounded-xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-bold text-rose-600 transition hover:border-rose-300 hover:bg-rose-100"
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-950 dark:text-white">
+                      Account settings
+                    </h3>
+
+                    <p className="mt-1 max-w-2xl text-[11px] leading-5 text-slate-500 dark:text-slate-400">
+                      Profile editing is not shown here because the current frontend does not have a verified profile-update API. Account preferences remain available from Settings.
+                    </p>
+                  </div>
+                </div>
+
+                <Link
+                  href="/settings"
+                  className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
-                  Remove
-                </button>
-              )}
-            </div>
-          </div>
+                  Open settings
 
-          {hasPendingPhotoChange && (
-            <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8">
-              <p className="text-sm font-semibold text-slate-600">
-                You have an unsaved profile photo
-                change.
-              </p>
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={handleCancelPhoto}
-                  className="flex-1 rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-100 sm:flex-none"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSavePhoto}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 sm:flex-none"
-                >
-                  Save Photo
-                </button>
+                  <ArrowIcon />
+                </Link>
               </div>
-            </div>
-          )}
-        </section>
-
-        {/* Photo Error */}
-        {photoError && (
-          <div className="flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-rose-100">
-              !
-            </span>
-
-            {photoError}
-          </div>
+            </section>
+          </>
         )}
-
-        {/* Photo Success */}
-        {photoMessage && (
-          <div className="flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm font-semibold text-blue-800">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100">
-              ✓
-            </span>
-
-            {photoMessage}
-          </div>
-        )}
-
-        {/* Profile Save Message */}
-        {savedMessage && (
-          <div
-            className={`flex items-center gap-3 rounded-2xl border p-4 text-sm font-semibold ${
-              savedMessage.includes(
-                "successfully",
-              )
-                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                : "border-rose-200 bg-rose-50 text-rose-800"
-            }`}
-          >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/60">
-              {savedMessage.includes(
-                "successfully",
-              )
-                ? "✓"
-                : "!"}
-            </span>
-
-            {savedMessage}
-          </div>
-        )}
-
-        {/* Profile Summary */}
-        <section className="grid gap-5 md:grid-cols-3">
-          <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  className="h-6 w-6"
-                  aria-hidden="true"
-                >
-                  <circle
-                    cx="12"
-                    cy="8"
-                    r="4"
-                  />
-
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M4.5 21a7.5 7.5 0 0 1 15 0"
-                  />
-                </svg>
-              </span>
-
-              <span className="text-2xl font-black text-slate-950">
-                {profileCompletion}%
-              </span>
-            </div>
-
-            <h3 className="mt-5 font-bold text-slate-950">
-              Profile completion
-            </h3>
-
-            <p className="mt-1 text-xs text-slate-500">
-              Add a profile picture to complete your
-              profile.
-            </p>
-
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-blue-600 to-violet-600 transition-all duration-500"
-                style={{
-                  width: `${profileCompletion}%`,
-                }}
-              />
-            </div>
-          </article>
-
-          <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-700">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                className="h-6 w-6"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M4 7h16v13H4zM8 7V4h8v3"
-                />
-
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M4 12h16"
-                />
-              </svg>
-            </span>
-
-            <p className="mt-5 text-sm font-semibold text-slate-500">
-              Workspace role
-            </p>
-
-            <p className="mt-1 text-xl font-bold text-slate-950">
-              {profile.role}
-            </p>
-          </article>
-
-          <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                className="h-6 w-6"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="m5 12 4 4L19 6"
-                />
-              </svg>
-            </span>
-
-            <p className="mt-5 text-sm font-semibold text-slate-500">
-              Account status
-            </p>
-
-            <p className="mt-1 text-xl font-bold text-emerald-700">
-              Verified
-            </p>
-          </article>
-        </section>
-
-        <section className="grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
-          {/* Personal Information */}
-          <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h3 className="text-xl font-bold text-slate-950">
-                  Personal Information
-                </h3>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Manage your profile and contact
-                  details.
-                </p>
-              </div>
-
-              <span className="shrink-0 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
-                Personal
-              </span>
-            </div>
-
-            {isEditing ? (
-              <div className="mt-7 grid gap-5 sm:grid-cols-2">
-                <ProfileInput
-                  label="Full name"
-                  value={draftProfile.fullName}
-                  onChange={(value) =>
-                    updateDraft("fullName", value)
-                  }
-                />
-
-                <ProfileInput
-                  label="Role"
-                  value={draftProfile.role}
-                  onChange={(value) =>
-                    updateDraft("role", value)
-                  }
-                />
-
-                <ProfileInput
-                  label="Email address"
-                  type="email"
-                  value={draftProfile.email}
-                  onChange={(value) =>
-                    updateDraft("email", value)
-                  }
-                />
-
-                <ProfileInput
-                  label="Mobile number"
-                  type="tel"
-                  value={draftProfile.mobile}
-                  onChange={(value) =>
-                    updateDraft("mobile", value)
-                  }
-                />
-
-                <div className="sm:col-span-2">
-                  <ProfileInput
-                    label="Location"
-                    value={draftProfile.location}
-                    onChange={(value) =>
-                      updateDraft("location", value)
-                    }
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="text-sm font-semibold text-slate-700">
-                    About
-                  </label>
-
-                  <textarea
-                    rows={4}
-                    value={draftProfile.bio}
-                    onChange={(event) =>
-                      updateDraft(
-                        "bio",
-                        event.target.value,
-                      )
-                    }
-                    className="mt-2 w-full resize-none rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-3 sm:col-span-2 sm:flex-row sm:justify-end">
-                  <button
-                    type="button"
-                    onClick={handleCancelEdit}
-                    className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100"
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleSaveProfile}
-                    className="rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5"
-                  >
-                    Save Changes
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-7 grid gap-5 sm:grid-cols-2">
-                <InformationCard
-                  label="Full name"
-                  value={profile.fullName}
-                />
-
-                <InformationCard
-                  label="Role"
-                  value={profile.role}
-                />
-
-                <InformationCard
-                  label="Email address"
-                  value={profile.email}
-                />
-
-                <InformationCard
-                  label="Mobile number"
-                  value={profile.mobile}
-                />
-
-                <InformationCard
-                  label="Location"
-                  value={profile.location}
-                  fullWidth
-                />
-
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 sm:col-span-2">
-                  <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
-                    About
-                  </p>
-
-                  <p className="mt-3 text-sm leading-7 text-slate-700">
-                    {profile.bio}
-                  </p>
-                </div>
-              </div>
-            )}
-          </article>
-
-          {/* Skills */}
-          <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-            <h3 className="text-xl font-bold text-slate-950">
-              Skills & Expertise
-            </h3>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Technologies used in Project LOOP.
-            </p>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              {skills.map((skill) => (
-                <span
-                  key={skill}
-                  className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700"
-                >
-                  {skill}
-                </span>
-              ))}
-            </div>
-
-            <div className="mt-8 rounded-2xl bg-gradient-to-br from-slate-950 to-indigo-950 p-5 text-white">
-              <p className="text-xs font-bold uppercase tracking-widest text-blue-300">
-                Current Project
-              </p>
-
-              <h4 className="mt-3 text-lg font-bold">
-                Project LOOP
-              </h4>
-
-              <p className="mt-2 text-sm leading-6 text-slate-300">
-                AI-powered customer feedback
-                intelligence platform.
-              </p>
-
-              <div className="mt-5 flex items-center gap-2 text-xs font-semibold text-emerald-300">
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
-
-                Active contributor
-              </div>
-            </div>
-          </article>
-        </section>
       </div>
     </LoopShell>
   );
 }
 
-function ProfileInput({
+function formatRole(
+  role?: string | null,
+) {
+  const value =
+    role?.trim();
+
+  if (!value) {
+    return "Member";
+  }
+
+  return value
+    .toLowerCase()
+    .replace(
+      /\b\w/g,
+      (letter) =>
+        letter.toUpperCase(),
+    );
+}
+
+function getInitials(
+  value: string,
+) {
+  const initials =
+    value
+      .split(
+        /[\s@._-]+/,
+      )
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) =>
+        part
+          .charAt(0)
+          .toUpperCase(),
+      )
+      .join("");
+
+  return initials || "L";
+}
+
+function Panel({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-950/[0.02] dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+      <div className="mb-5">
+        <h2 className="text-sm font-semibold text-slate-950 dark:text-white">
+          {title}
+        </h2>
+
+        <p className="mt-1 text-[11px] leading-5 text-slate-500 dark:text-slate-400">
+          {description}
+        </p>
+      </div>
+
+      {children}
+    </section>
+  );
+}
+
+function ProfileStat({
   label,
   value,
-  onChange,
-  type = "text",
+  icon,
 }: {
   label: string;
   value: string;
-  onChange: (value: string) => void;
-  type?: string;
+  icon: ReactNode;
 }) {
   return (
-    <div>
-      <label className="text-sm font-semibold text-slate-700">
-        {label}
-      </label>
+    <div className="flex items-center gap-3 bg-white px-5 py-4 dark:bg-slate-900">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+        {icon}
+      </span>
 
-      <input
-        type={type}
-        value={value}
-        onChange={(event) =>
-          onChange(event.target.value)
-        }
-        className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-950 outline-none transition focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-100"
-      />
+      <div className="min-w-0">
+        <p className="text-[10px] font-medium text-slate-400">
+          {label}
+        </p>
+
+        <p className="mt-1 truncate text-xs font-semibold text-slate-900 dark:text-white">
+          {value}
+        </p>
+      </div>
     </div>
   );
 }
@@ -935,25 +456,457 @@ function ProfileInput({
 function InformationCard({
   label,
   value,
-  fullWidth = false,
+  icon,
 }: {
   label: string;
   value: string;
-  fullWidth?: boolean;
+  icon: ReactNode;
 }) {
   return (
-    <div
-      className={`rounded-2xl border border-slate-200 bg-slate-50 p-5 ${
-        fullWidth ? "sm:col-span-2" : ""
-      }`}
+    <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-800/40">
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-slate-500 shadow-sm dark:bg-slate-800 dark:text-slate-300">
+          {icon}
+        </span>
+
+        <div className="min-w-0">
+          <p className="text-[10px] font-medium text-slate-400">
+            {label}
+          </p>
+
+          <p className="mt-1 break-words text-xs font-semibold text-slate-900 dark:text-white">
+            {value}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuickLink({
+  href,
+  title,
+  description,
+  icon,
+}: {
+  href: string;
+  title: string;
+  description: string;
+  icon: ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group flex items-center gap-3 rounded-xl border border-slate-200 p-3 transition hover:border-blue-200 hover:bg-blue-50/40 dark:border-slate-800 dark:hover:border-slate-700 dark:hover:bg-slate-800/40"
     >
-      <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
-        {label}
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition group-hover:bg-blue-100 group-hover:text-blue-600 dark:bg-slate-800 dark:text-slate-300 dark:group-hover:bg-blue-950/40 dark:group-hover:text-blue-300">
+        {icon}
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+          {title}
+        </p>
+
+        <p className="mt-0.5 truncate text-[10px] text-slate-400">
+          {description}
+        </p>
+      </div>
+
+      <span className="text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-blue-500">
+        <ArrowIcon />
+      </span>
+    </Link>
+  );
+}
+
+function SignedOutState() {
+  return (
+    <section className="flex min-h-[430px] flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-6 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 dark:bg-slate-800">
+        <UserIcon />
+      </span>
+
+      <h2 className="mt-5 text-lg font-semibold text-slate-950 dark:text-white">
+        Account session unavailable
+      </h2>
+
+      <p className="mt-2 max-w-md text-xs leading-6 text-slate-500 dark:text-slate-400">
+        LOOP could not find an authenticated user session for this page.
       </p>
 
-      <p className="mt-2 break-words text-sm font-semibold text-slate-900">
-        {value}
-      </p>
+      <Link
+        href="/"
+        className="mt-6 inline-flex h-10 items-center gap-2 rounded-xl bg-blue-600 px-4 text-xs font-semibold text-white transition hover:bg-blue-500"
+      >
+        Return to sign in
+
+        <ArrowIcon />
+      </Link>
+    </section>
+  );
+}
+
+function ProfileSkeleton() {
+  return (
+    <div className="space-y-5">
+      <div className="h-56 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800" />
+
+      <div className="grid gap-5 lg:grid-cols-[1.25fr_0.75fr]">
+        <div className="h-[360px] animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800" />
+
+        <div className="space-y-5">
+          <div className="h-44 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800" />
+
+          <div className="h-64 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800" />
+        </div>
+      </div>
     </div>
+  );
+}
+
+function UserIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <circle
+        cx="12"
+        cy="8"
+        r="4"
+      />
+
+      <path
+        strokeLinecap="round"
+        d="M5 21a7 7 0 0 1 14 0"
+      />
+    </svg>
+  );
+}
+
+function MailIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <rect
+        x="3"
+        y="5"
+        width="18"
+        height="14"
+        rx="2"
+      />
+
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="m4 7 8 6 8-6"
+      />
+    </svg>
+  );
+}
+
+function RoleIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <rect
+        x="4"
+        y="7"
+        width="16"
+        height="12"
+        rx="2"
+      />
+
+      <path
+        strokeLinecap="round"
+        d="M9 7V5h6v2M4 12h16"
+      />
+    </svg>
+  );
+}
+
+function AccountIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+      />
+
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="m8 12 2.5 2.5L16 9"
+      />
+    </svg>
+  );
+}
+
+function WorkspaceIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <rect
+        x="3"
+        y="4"
+        width="18"
+        height="16"
+        rx="2"
+      />
+
+      <path
+        strokeLinecap="round"
+        d="M8 8h8M8 12h8M8 16h5"
+      />
+    </svg>
+  );
+}
+
+function DashboardIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <rect
+        x="4"
+        y="4"
+        width="6"
+        height="6"
+        rx="1.5"
+      />
+
+      <rect
+        x="14"
+        y="4"
+        width="6"
+        height="6"
+        rx="1.5"
+      />
+
+      <rect
+        x="4"
+        y="14"
+        width="6"
+        height="6"
+        rx="1.5"
+      />
+
+      <rect
+        x="14"
+        y="14"
+        width="6"
+        height="6"
+        rx="1.5"
+      />
+    </svg>
+  );
+}
+
+function FeedbackIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M5 5h14v10H9l-4 4V5Z"
+      />
+
+      <path
+        strokeLinecap="round"
+        d="M8 9h8M8 12h5"
+      />
+    </svg>
+  );
+}
+
+function SparkleIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z"
+      />
+    </svg>
+  );
+}
+
+function ReportIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        d="M5 20V11m7 9V5m7 15v-7"
+      />
+    </svg>
+  );
+}
+
+function SettingsIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="3"
+      />
+
+      <path
+        strokeLinecap="round"
+        d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"
+      />
+    </svg>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <rect
+        x="5"
+        y="10"
+        width="14"
+        height="10"
+        rx="2"
+      />
+
+      <path
+        strokeLinecap="round"
+        d="M8 10V7a4 4 0 0 1 8 0v3"
+      />
+    </svg>
+  );
+}
+
+function InfoIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+      />
+
+      <path
+        strokeLinecap="round"
+        d="M12 10v6M12 7h.01"
+      />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="m5 12 4 4L19 6"
+      />
+    </svg>
+  );
+}
+
+function ArrowIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-3.5 w-3.5"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="m9 5 7 7-7 7"
+      />
+    </svg>
   );
 }

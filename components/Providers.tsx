@@ -1,13 +1,14 @@
 "use client";
 
 import { SessionProvider } from "next-auth/react";
+
 import {
   createContext,
   useCallback,
   useContext,
   useEffect,
   useMemo,
-  useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 
@@ -16,19 +17,39 @@ export type ThemePreference =
   | "dark"
   | "system";
 
-type ResolvedTheme = "light" | "dark";
+export type ResolvedTheme =
+  | "light"
+  | "dark";
 
 type ThemeContextValue = {
   theme: ThemePreference;
   resolvedTheme: ResolvedTheme;
   mounted: boolean;
-  setTheme: (theme: ThemePreference) => void;
+  setTheme: (
+    theme: ThemePreference,
+  ) => void;
 };
 
-const themeStorageKey = "loop-theme";
+type ProvidersProps = {
+  children: ReactNode;
+};
+
+const THEME_STORAGE_KEY =
+  "loop-theme";
+
+const THEME_CHANGE_EVENT =
+  "loop-theme-change";
+
+const DARK_MODE_QUERY =
+  "(prefers-color-scheme: dark)";
+
+const DEFAULT_THEME: ThemePreference =
+  "light";
 
 const ThemeContext =
-  createContext<ThemeContextValue | null>(null);
+  createContext<
+    ThemeContextValue | undefined
+  >(undefined);
 
 function isThemePreference(
   value: string | null,
@@ -40,115 +61,248 @@ function isThemePreference(
   );
 }
 
+function getStoredTheme(): ThemePreference {
+  if (
+    typeof window ===
+    "undefined"
+  ) {
+    return DEFAULT_THEME;
+  }
+
+  try {
+    const storedTheme =
+      window.localStorage.getItem(
+        THEME_STORAGE_KEY,
+      );
+
+    return isThemePreference(
+      storedTheme,
+    )
+      ? storedTheme
+      : DEFAULT_THEME;
+  } catch {
+    return DEFAULT_THEME;
+  }
+}
+
 function getSystemTheme(): ResolvedTheme {
+  if (
+    typeof window ===
+    "undefined"
+  ) {
+    return "light";
+  }
+
   return window.matchMedia(
-    "(prefers-color-scheme: dark)",
+    DARK_MODE_QUERY,
   ).matches
     ? "dark"
     : "light";
 }
 
-function applyTheme(
+function resolveTheme(
   theme: ThemePreference,
+  systemTheme: ResolvedTheme,
 ): ResolvedTheme {
-  const resolvedTheme =
+  if (
     theme === "system"
-      ? getSystemTheme()
-      : theme;
+  ) {
+    return systemTheme;
+  }
 
-  const root = document.documentElement;
+  return theme;
+}
+
+function applyResolvedTheme(
+  resolvedTheme: ResolvedTheme,
+) {
+  if (
+    typeof document ===
+    "undefined"
+  ) {
+    return;
+  }
+
+  const root =
+    document.documentElement;
+
+  const isDark =
+    resolvedTheme ===
+    "dark";
 
   root.classList.toggle(
     "dark",
-    resolvedTheme === "dark",
+    isDark,
   );
 
-  root.dataset.theme = resolvedTheme;
-  root.dataset.themePreference = theme;
-  root.style.colorScheme = resolvedTheme;
-
-  return resolvedTheme;
+  root.style.colorScheme =
+    isDark
+      ? "dark"
+      : "light";
 }
 
-export default function Providers({
+function subscribeTheme(
+  onStoreChange: () => void,
+) {
+  function handleStorage(
+    event: StorageEvent,
+  ) {
+    if (
+      event.key ===
+        THEME_STORAGE_KEY ||
+      event.key === null
+    ) {
+      onStoreChange();
+    }
+  }
+
+  function handleThemeChange() {
+    onStoreChange();
+  }
+
+  window.addEventListener(
+    "storage",
+    handleStorage,
+  );
+
+  window.addEventListener(
+    THEME_CHANGE_EVENT,
+    handleThemeChange,
+  );
+
+  return () => {
+    window.removeEventListener(
+      "storage",
+      handleStorage,
+    );
+
+    window.removeEventListener(
+      THEME_CHANGE_EVENT,
+      handleThemeChange,
+    );
+  };
+}
+
+function subscribeSystemTheme(
+  onStoreChange: () => void,
+) {
+  const mediaQuery =
+    window.matchMedia(
+      DARK_MODE_QUERY,
+    );
+
+  function handleChange() {
+    onStoreChange();
+  }
+
+  mediaQuery.addEventListener(
+    "change",
+    handleChange,
+  );
+
+  return () => {
+    mediaQuery.removeEventListener(
+      "change",
+      handleChange,
+    );
+  };
+}
+
+function subscribeMounted() {
+  return () => {};
+}
+
+function getMountedSnapshot() {
+  return true;
+}
+
+function getServerMountedSnapshot() {
+  return false;
+}
+
+function getServerThemeSnapshot(): ThemePreference {
+  return DEFAULT_THEME;
+}
+
+function getServerSystemThemeSnapshot(): ResolvedTheme {
+  return "light";
+}
+
+function ThemeProvider({
   children,
 }: {
   children: ReactNode;
 }) {
-  const [theme, setThemeState] =
-    useState<ThemePreference>("system");
-
-  const [resolvedTheme, setResolvedTheme] =
-    useState<ResolvedTheme>("light");
-
-  const [mounted, setMounted] =
-    useState(false);
-
-  useEffect(() => {
-    const savedTheme =
-      window.localStorage.getItem(
-        themeStorageKey,
-      );
-
-    const initialTheme =
-      isThemePreference(savedTheme)
-        ? savedTheme
-        : "system";
-
-    setThemeState(initialTheme);
-
-    setResolvedTheme(
-      applyTheme(initialTheme),
+  const theme =
+    useSyncExternalStore(
+      subscribeTheme,
+      getStoredTheme,
+      getServerThemeSnapshot,
     );
 
-    setMounted(true);
-  }, []);
+  const systemTheme =
+    useSyncExternalStore(
+      subscribeSystemTheme,
+      getSystemTheme,
+      getServerSystemThemeSnapshot,
+    );
 
-  useEffect(() => {
-    if (!mounted) {
-      return;
-    }
+  const mounted =
+    useSyncExternalStore(
+      subscribeMounted,
+      getMountedSnapshot,
+      getServerMountedSnapshot,
+    );
 
-    window.localStorage.setItem(
-      themeStorageKey,
+  const resolvedTheme =
+    resolveTheme(
       theme,
+      systemTheme,
     );
 
-    const mediaQuery = window.matchMedia(
-      "(prefers-color-scheme: dark)",
+  useEffect(() => {
+    applyResolvedTheme(
+      resolvedTheme,
+    );
+  }, [resolvedTheme]);
+
+  const setTheme =
+    useCallback(
+      (
+        nextTheme: ThemePreference,
+      ) => {
+        try {
+          window.localStorage.setItem(
+            THEME_STORAGE_KEY,
+            nextTheme,
+          );
+        } catch {
+          // The selected theme still
+          // applies for the current
+          // session if storage is
+          // unavailable.
+        }
+
+        const nextResolvedTheme =
+          resolveTheme(
+            nextTheme,
+            getSystemTheme(),
+          );
+
+        applyResolvedTheme(
+          nextResolvedTheme,
+        );
+
+        window.dispatchEvent(
+          new Event(
+            THEME_CHANGE_EVENT,
+          ),
+        );
+      },
+      [],
     );
 
-    function updateResolvedTheme() {
-      setResolvedTheme(applyTheme(theme));
-    }
-
-    updateResolvedTheme();
-
-    if (theme !== "system") {
-      return;
-    }
-
-    mediaQuery.addEventListener(
-      "change",
-      updateResolvedTheme,
-    );
-
-    return () => {
-      mediaQuery.removeEventListener(
-        "change",
-        updateResolvedTheme,
-      );
-    };
-  }, [theme, mounted]);
-
-  const setTheme = useCallback(
-    (newTheme: ThemePreference) => {
-      setThemeState(newTheme);
-    },
-    [],
-  );
-
-  const themeValue =
+  const contextValue =
     useMemo<ThemeContextValue>(
       () => ({
         theme,
@@ -165,18 +319,21 @@ export default function Providers({
     );
 
   return (
-    <SessionProvider>
-      <ThemeContext.Provider
-        value={themeValue}
-      >
-        {children}
-      </ThemeContext.Provider>
-    </SessionProvider>
+    <ThemeContext.Provider
+      value={
+        contextValue
+      }
+    >
+      {children}
+    </ThemeContext.Provider>
   );
 }
 
 export function useTheme() {
-  const context = useContext(ThemeContext);
+  const context =
+    useContext(
+      ThemeContext,
+    );
 
   if (!context) {
     throw new Error(
@@ -185,4 +342,16 @@ export function useTheme() {
   }
 
   return context;
+}
+
+export default function Providers({
+  children,
+}: ProvidersProps) {
+  return (
+    <SessionProvider>
+      <ThemeProvider>
+        {children}
+      </ThemeProvider>
+    </SessionProvider>
+  );
 }

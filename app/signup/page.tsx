@@ -1,909 +1,576 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
+
 import {
-  useEffect,
   useState,
   type FormEvent,
 } from "react";
 
 export default function SignupPage() {
-  const router = useRouter();
-
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [mobileNumber, setMobileNumber] =
-    useState("");
-
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] =
-    useState("");
-
-  const [showPassword, setShowPassword] =
-    useState(false);
+  const [
+    fullName,
+    setFullName,
+  ] = useState("");
 
   const [
-    showConfirmPassword,
-    setShowConfirmPassword,
-  ] = useState(false);
-
-  const [agreeTerms, setAgreeTerms] =
-    useState(false);
-
-  /* Email OTP States */
-  const [emailOtpSent, setEmailOtpSent] =
-    useState(false);
-
-  const [emailOtp, setEmailOtp] = useState("");
-
-  const [isEmailVerified, setIsEmailVerified] =
-    useState(false);
+    workspaceName,
+    setWorkspaceName,
+  ] = useState("");
 
   const [
-    emailResendSeconds,
-    setEmailResendSeconds,
-  ] = useState(0);
-
-  /* Mobile OTP States */
-  const [mobileOtpSent, setMobileOtpSent] =
-    useState(false);
-
-  const [mobileOtp, setMobileOtp] = useState("");
+    email,
+    setEmail,
+  ] = useState("");
 
   const [
-    isMobileVerified,
-    setIsMobileVerified,
+    password,
+    setPassword,
+  ] = useState("");
+
+  const [
+    isLoading,
+    setIsLoading,
   ] = useState(false);
 
   const [
-    mobileResendSeconds,
-    setMobileResendSeconds,
-  ] = useState(0);
+    errorMessage,
+    setErrorMessage,
+  ] = useState("");
 
-  const [errorMessage, setErrorMessage] =
-    useState("");
+  const [
+    successMessage,
+    setSuccessMessage,
+  ] = useState("");
 
-  /* Email OTP Timer */
-  useEffect(() => {
-    if (
-      !emailOtpSent ||
-      emailResendSeconds <= 0 ||
-      isEmailVerified
-    ) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setEmailResendSeconds(
-        (previous) => previous - 1,
-      );
-    }, 1000);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [
-    emailOtpSent,
-    emailResendSeconds,
-    isEmailVerified,
-  ]);
-
-  /* Mobile OTP Timer */
-  useEffect(() => {
-    if (
-      !mobileOtpSent ||
-      mobileResendSeconds <= 0 ||
-      isMobileVerified
-    ) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setMobileResendSeconds(
-        (previous) => previous - 1,
-      );
-    }, 1000);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [
-    mobileOtpSent,
-    mobileResendSeconds,
-    isMobileVerified,
-  ]);
-
-  function clearError() {
-    setErrorMessage("");
-  }
-
-  function isValidEmail(emailValue: string) {
-    const emailPattern =
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    return emailPattern.test(
-      emailValue.trim(),
+  async function handleGoogleAuth() {
+    await signIn(
+      "google",
+      {
+        callbackUrl:
+          "/dashboard",
+      },
     );
   }
 
-  function isValidMobile(
-    mobileValue: string,
-  ) {
-    const mobilePattern = /^[6-9]\d{9}$/;
-
-    return mobilePattern.test(mobileValue);
-  }
-
-  function formatTimer(seconds: number) {
-    return `00:${seconds
-      .toString()
-      .padStart(2, "0")}`;
-  }
-
-  /* Reset Email Verification */
-  function resetEmailVerification() {
-    setEmailOtp("");
-    setEmailOtpSent(false);
-    setIsEmailVerified(false);
-    setEmailResendSeconds(0);
-  }
-
-  /* Send Email OTP */
-  function handleSendEmailOtp() {
-    clearError();
-
-    if (!email.trim()) {
-      setErrorMessage(
-        "Please enter your email address.",
-      );
-      return;
-    }
-
-    if (!isValidEmail(email)) {
-      setErrorMessage(
-        "Please enter a valid email address.",
-      );
-      return;
-    }
-
-    setEmailOtp("");
-    setEmailOtpSent(true);
-    setIsEmailVerified(false);
-    setEmailResendSeconds(30);
-  }
-
-  /* Verify Email OTP */
-  function handleVerifyEmailOtp() {
-    clearError();
-
-    if (!emailOtp.trim()) {
-      setErrorMessage(
-        "Please enter the email OTP.",
-      );
-      return;
-    }
-
-    if (!/^\d{6}$/.test(emailOtp)) {
-      setErrorMessage(
-        "Email OTP must contain exactly 6 digits.",
-      );
-      return;
-    }
-
-    setIsEmailVerified(true);
-    setEmailResendSeconds(0);
-  }
-
-  /* Resend Email OTP */
-  function handleResendEmailOtp() {
-    if (emailResendSeconds > 0) {
-      return;
-    }
-
-    clearError();
-    setEmailOtp("");
-    setEmailOtpSent(true);
-    setIsEmailVerified(false);
-    setEmailResendSeconds(30);
-  }
-
-  /* Reset Mobile Verification */
-  function resetMobileVerification() {
-    setMobileOtp("");
-    setMobileOtpSent(false);
-    setIsMobileVerified(false);
-    setMobileResendSeconds(0);
-  }
-
-  /* Send Mobile OTP */
-  function handleSendMobileOtp() {
-    clearError();
-
-    if (!mobileNumber.trim()) {
-      setErrorMessage(
-        "Please enter your mobile number.",
-      );
-      return;
-    }
-
-    if (!isValidMobile(mobileNumber)) {
-      setErrorMessage(
-        "Please enter a valid 10-digit mobile number.",
-      );
-      return;
-    }
-
-    setMobileOtp("");
-    setMobileOtpSent(true);
-    setIsMobileVerified(false);
-    setMobileResendSeconds(30);
-  }
-
-  /* Verify Mobile OTP */
-  function handleVerifyMobileOtp() {
-    clearError();
-
-    if (!mobileOtp.trim()) {
-      setErrorMessage(
-        "Please enter the mobile OTP.",
-      );
-      return;
-    }
-
-    if (!/^\d{6}$/.test(mobileOtp)) {
-      setErrorMessage(
-        "Mobile OTP must contain exactly 6 digits.",
-      );
-      return;
-    }
-
-    setIsMobileVerified(true);
-    setMobileResendSeconds(0);
-  }
-
-  /* Resend Mobile OTP */
-  function handleResendMobileOtp() {
-    if (mobileResendSeconds > 0) {
-      return;
-    }
-
-    clearError();
-    setMobileOtp("");
-    setMobileOtpSent(true);
-    setIsMobileVerified(false);
-    setMobileResendSeconds(30);
-  }
-
-  /* Create Account */
-  function handleSubmit(
+  async function handleSubmit(
     event: FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
-    clearError();
+
+    const name =
+      fullName.trim();
+
+    const workspace =
+      workspaceName.trim();
+
+    const normalizedEmail =
+      email
+        .trim()
+        .toLowerCase();
+
+    const normalizedPassword =
+      password.trim();
+
+    setErrorMessage("");
+    setSuccessMessage("");
 
     if (
-      !fullName.trim() ||
-      !email.trim() ||
-      !mobileNumber.trim() ||
-      !password ||
-      !confirmPassword
+      !name ||
+      !workspace ||
+      !normalizedEmail ||
+      !normalizedPassword
     ) {
       setErrorMessage(
         "Please complete all required fields.",
       );
+
       return;
     }
 
-    if (fullName.trim().length < 3) {
+    if (
+      normalizedPassword.length <
+      6
+    ) {
       setErrorMessage(
-        "Full name must contain at least 3 characters.",
+        "Password must contain at least 6 characters.",
       );
+
       return;
     }
 
-    if (!isValidEmail(email)) {
+    setIsLoading(true);
+
+    try {
+      const response =
+        await fetch(
+          "/api/auth/register",
+          {
+            method:
+              "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body:
+              JSON.stringify(
+                {
+                  name,
+                  email:
+                    normalizedEmail,
+                  password:
+                    normalizedPassword,
+                  workspaceName:
+                    workspace,
+                },
+              ),
+          },
+        );
+
+      const data =
+        (await response.json()) as {
+          error?: string;
+        };
+
+      if (!response.ok) {
+        setErrorMessage(
+          data.error ||
+            "Unable to create your workspace. Please check your details.",
+        );
+
+        return;
+      }
+
+      setSuccessMessage(
+        "Workspace created successfully. Signing you in…",
+      );
+
+      const loginResult =
+        await signIn(
+          "credentials",
+          {
+            email:
+              normalizedEmail,
+            password:
+              normalizedPassword,
+            redirect:
+              false,
+          },
+        );
+
+      if (
+        loginResult?.ok
+      ) {
+        window.location.href =
+          "/dashboard";
+
+        return;
+      }
+
+      setSuccessMessage(
+        "Account created successfully. Please sign in using your new credentials.",
+      );
+    } catch {
       setErrorMessage(
-        "Please enter a valid email address.",
+        "Unable to create your account right now. Please try again.",
       );
-      return;
+    } finally {
+      setIsLoading(false);
     }
-
-    if (!isEmailVerified) {
-      setErrorMessage(
-        "Please verify your email address.",
-      );
-      return;
-    }
-
-    if (!isValidMobile(mobileNumber)) {
-      setErrorMessage(
-        "Please enter a valid 10-digit mobile number.",
-      );
-      return;
-    }
-
-    if (!isMobileVerified) {
-      setErrorMessage(
-        "Please verify your mobile number.",
-      );
-      return;
-    }
-
-    if (password.length < 8) {
-      setErrorMessage(
-        "Password must contain at least 8 characters.",
-      );
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setErrorMessage(
-        "Password and confirm password do not match.",
-      );
-      return;
-    }
-
-    if (!agreeTerms) {
-      setErrorMessage(
-        "Please accept the Terms and Privacy Policy.",
-      );
-      return;
-    }
-
-    router.replace("/login");
   }
 
   return (
-    <main className="min-h-screen bg-slate-100">
-      <div className="grid min-h-screen lg:grid-cols-[36%_64%]">
-        {/* Left Section */}
-        <section className="relative hidden overflow-hidden bg-slate-950 p-10 text-white lg:flex lg:flex-col lg:justify-between xl:p-12">
-          <div className="absolute -left-24 top-20 h-64 w-64 rounded-full bg-blue-600/20 blur-3xl" />
-
-          <div className="absolute -bottom-24 right-0 h-72 w-72 rounded-full bg-violet-600/20 blur-3xl" />
-
-          {/* Logo */}
+    <main className="min-h-screen bg-slate-950 text-white">
+      <header className="border-b border-slate-800/80">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 sm:px-6 lg:px-8">
           <Link
-            href="/login"
-            className="relative z-10 inline-flex items-center gap-3"
+            href="/"
+            className="flex items-center gap-3"
           >
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-violet-600 text-lg font-bold text-white">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-sm font-semibold text-white shadow-lg shadow-blue-950/30">
               L
             </span>
 
             <span>
-              <span className="block text-xl font-bold text-white">
-                LOOP
+              <span className="block text-sm font-semibold tracking-tight text-white">
+                Project LOOP
               </span>
 
-              <span className="block text-sm text-slate-400">
-                Feedback Intelligence
+              <span className="block text-[10px] text-slate-500">
+                Customer Feedback Intelligence
               </span>
             </span>
           </Link>
 
-          {/* Information */}
-          <div className="relative z-10">
-            <span className="inline-flex rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-blue-100">
-              AI-powered customer intelligence
-            </span>
+          <Link
+            href="/"
+            className="hidden rounded-full border border-slate-800 bg-slate-900 px-3 py-1.5 text-[10px] font-medium text-slate-400 transition hover:border-slate-700 hover:text-slate-200 sm:inline-flex"
+          >
+            Back to sign in
+          </Link>
+        </div>
+      </header>
 
-            <h1 className="mt-6 text-4xl font-bold leading-tight text-white">
-              Create your LOOP account.
-            </h1>
+      <div className="mx-auto grid min-h-[calc(100vh-74px)] max-w-7xl overflow-hidden lg:grid-cols-[1fr_520px]">
+        <section className="relative flex items-center overflow-hidden px-5 py-14 sm:px-8 lg:px-12 xl:px-16">
+          <div className="pointer-events-none absolute inset-0">
+            <div className="absolute -left-40 top-20 h-96 w-96 rounded-full bg-blue-600/10 blur-3xl" />
 
-            <p className="mt-5 text-base leading-7 text-slate-300">
-              Verify your contact details and
-              access customer feedback insights.
-            </p>
-
-            <div className="mt-8 space-y-4">
-              <article className="flex items-start gap-4 rounded-2xl border border-white/10 bg-white/5 p-5">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-500/20 font-bold text-blue-300">
-                  01
-                </span>
-
-                <div>
-                  <h2 className="font-bold text-white">
-                    Verify your email
-                  </h2>
-
-                  <p className="mt-1 text-sm leading-6 text-slate-400">
-                    Complete email OTP verification.
-                  </p>
-                </div>
-              </article>
-
-              <article className="flex items-start gap-4 rounded-2xl border border-white/10 bg-white/5 p-5">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500/20 font-bold text-violet-300">
-                  02
-                </span>
-
-                <div>
-                  <h2 className="font-bold text-white">
-                    Verify your mobile
-                  </h2>
-
-                  <p className="mt-1 text-sm leading-6 text-slate-400">
-                    Complete mobile OTP verification.
-                  </p>
-                </div>
-              </article>
-
-              <article className="flex items-start gap-4 rounded-2xl border border-white/10 bg-white/5 p-5">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 font-bold text-emerald-300">
-                  03
-                </span>
-
-                <div>
-                  <h2 className="font-bold text-white">
-                    Create your account
-                  </h2>
-
-                  <p className="mt-1 text-sm leading-6 text-slate-400">
-                    Set your password and continue.
-                  </p>
-                </div>
-              </article>
-            </div>
+            <div className="absolute bottom-10 right-10 h-80 w-80 rounded-full bg-violet-600/10 blur-3xl" />
           </div>
 
-          <p className="relative z-10 text-sm text-slate-500">
-            © 2026 Project LOOP
-          </p>
+          <div className="relative max-w-2xl">
+            <span className="inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-blue-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
+
+              Get started
+            </span>
+
+            <h1 className="mt-6 max-w-xl text-4xl font-semibold tracking-tight text-white sm:text-5xl lg:text-6xl">
+              Create your
+              LOOP workspace.
+            </h1>
+
+            <p className="mt-6 max-w-xl text-sm leading-7 text-slate-400 sm:text-base">
+              Bring customer
+              feedback into one
+              workspace, organise
+              insights and ask
+              evidence-backed
+              questions from one
+              application.
+            </p>
+
+            <div className="mt-10 grid gap-3 sm:grid-cols-3">
+              <FeatureCard
+                number="01"
+                title="Create"
+                description="Create your authenticated workspace account."
+              />
+
+              <FeatureCard
+                number="02"
+                title="Collect"
+                description="Import and review customer feedback."
+              />
+
+              <FeatureCard
+                number="03"
+                title="Understand"
+                description="Explore sentiment, themes and Ask LOOP."
+              />
+            </div>
+
+            <div className="mt-10 flex items-center gap-3 text-[10px] text-slate-500">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+
+              Registration is handled
+              through the LOOP
+              application API.
+            </div>
+          </div>
         </section>
 
-        {/* Signup Form Section */}
-        <section className="flex items-start justify-center px-4 py-10 sm:px-8 lg:px-12">
-          <div className="w-full max-w-2xl">
-            {/* Mobile Logo */}
-            <Link
-              href="/login"
-              className="mb-8 inline-flex items-center gap-3 lg:hidden"
-            >
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-violet-600 text-lg font-bold text-white">
-                L
-              </span>
-
-              <span>
-                <span className="block text-xl font-bold text-slate-950">
-                  LOOP
-                </span>
-
-                <span className="block text-sm text-slate-600">
-                  Feedback Intelligence
-                </span>
-              </span>
-            </Link>
-
-            {/* Signup Card */}
-            <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/60 sm:p-10">
-              <p className="text-sm font-bold uppercase tracking-[0.18em] text-blue-700">
-                Get started
+        <section className="flex items-center border-t border-slate-200 bg-slate-50 px-5 py-10 text-slate-950 sm:px-8 lg:border-l lg:border-t-0 lg:px-10">
+          <div className="mx-auto w-full max-w-md">
+            <div className="mb-6">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-600">
+                Registration
               </p>
 
-              <h1 className="mt-3 text-3xl font-bold text-slate-950 sm:text-4xl">
-                Create your account
-              </h1>
+              <div className="mt-2 flex items-end justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
+                    Create workspace
+                  </h2>
 
-              <p className="mt-3 text-base leading-7 text-slate-600">
-                Enter and verify your details to
-                create a LOOP account.
-              </p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Create your account
+                    and initial LOOP
+                    workspace.
+                  </p>
+                </div>
+
+                <span className="hidden h-10 w-10 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-xs font-bold text-blue-600 sm:flex">
+                  L
+                </span>
+              </div>
+            </div>
+
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-950/[0.06] sm:p-7">
+              <button
+                type="button"
+                onClick={
+                  handleGoogleAuth
+                }
+                className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+              >
+                <GoogleIcon />
+
+                Continue with Google
+              </button>
+
+              <Divider />
+
+              {errorMessage && (
+                <MessageBox
+                  tone="error"
+                  message={
+                    errorMessage
+                  }
+                />
+              )}
+
+              {successMessage && (
+                <MessageBox
+                  tone="success"
+                  message={
+                    successMessage
+                  }
+                />
+              )}
 
               <form
-                onSubmit={handleSubmit}
-                className="mt-9 space-y-6"
+                onSubmit={
+                  handleSubmit
+                }
+                className="mt-5 space-y-4"
               >
-                {/* Full Name */}
-                <div>
-                  <label
-                    htmlFor="fullName"
-                    className="text-base font-semibold text-slate-800"
-                  >
-                    Full name
-                  </label>
+                <Field
+                  label="Full name"
+                  type="text"
+                  value={
+                    fullName
+                  }
+                  placeholder="Your name"
+                  autoComplete="name"
+                  onChange={
+                    setFullName
+                  }
+                />
 
-                  <input
-                    id="fullName"
-                    type="text"
-                    value={fullName}
-                    onChange={(event) => {
-                      setFullName(event.target.value);
-                      clearError();
-                    }}
-                    placeholder="Enter your full name"
-                    autoComplete="name"
-                    className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50 px-5 py-4 text-base font-medium text-slate-950 outline-none transition placeholder:text-slate-500 focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                  />
-                </div>
+                <Field
+                  label="Workspace name"
+                  type="text"
+                  value={
+                    workspaceName
+                  }
+                  placeholder="Company or team"
+                  autoComplete="organization"
+                  onChange={
+                    setWorkspaceName
+                  }
+                />
 
-                {/* Email */}
-                <div>
-                  <label
-                    htmlFor="signupEmail"
-                    className="text-base font-semibold text-slate-800"
-                  >
-                    Email address
-                  </label>
+                <Field
+                  label="Work email"
+                  type="email"
+                  value={
+                    email
+                  }
+                  placeholder="name@company.com"
+                  autoComplete="email"
+                  onChange={
+                    setEmail
+                  }
+                />
 
-                  <div className="mt-2 flex flex-col gap-3 sm:flex-row">
-                    <input
-                      id="signupEmail"
-                      type="email"
-                      value={email}
-                      disabled={isEmailVerified}
-                      onChange={(event) => {
-                        setEmail(event.target.value);
-                        resetEmailVerification();
-                        clearError();
-                      }}
-                      placeholder="name@example.com"
-                      autoComplete="email"
-                      className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-slate-50 px-5 py-4 text-base font-medium text-slate-950 outline-none transition placeholder:text-slate-500 focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100"
-                    />
+                <Field
+                  label="Password"
+                  type="password"
+                  value={
+                    password
+                  }
+                  placeholder="At least 6 characters"
+                  autoComplete="new-password"
+                  onChange={
+                    setPassword
+                  }
+                />
 
-                    {!emailOtpSent &&
-                      !isEmailVerified && (
-                        <button
-                          type="button"
-                          onClick={handleSendEmailOtp}
-                          className="shrink-0 rounded-xl bg-slate-950 px-6 py-4 text-base font-bold text-white transition hover:bg-slate-800"
-                        >
-                          Send OTP
-                        </button>
-                      )}
-                  </div>
-
-                  {isEmailVerified && (
-                    <p className="mt-3 font-semibold text-emerald-700">
-                      ✓ Email verified
-                    </p>
-                  )}
-                </div>
-
-                {/* Email OTP */}
-                {emailOtpSent &&
-                  !isEmailVerified && (
-                    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
-                      <label
-                        htmlFor="emailOtp"
-                        className="text-base font-semibold text-slate-800"
-                      >
-                        Email verification code
-                      </label>
-
-                      <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-                        <input
-                          id="emailOtp"
-                          type="text"
-                          inputMode="numeric"
-                          maxLength={6}
-                          value={emailOtp}
-                          onChange={(event) => {
-                            setEmailOtp(
-                              event.target.value
-                                .replace(/\D/g, "")
-                                .slice(0, 6),
-                            );
-
-                            clearError();
-                          }}
-                          placeholder="Enter 6-digit OTP"
-                          className="min-w-0 flex-1 rounded-xl border border-blue-200 bg-white px-5 py-4 text-center text-base font-bold tracking-[0.2em] text-slate-950 outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
-                        />
-
-                        <button
-                          type="button"
-                          onClick={
-                            handleVerifyEmailOtp
-                          }
-                          className="rounded-xl bg-blue-700 px-6 py-4 font-bold text-white hover:bg-blue-800"
-                        >
-                          Verify
-                        </button>
-                      </div>
-
-                      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                        <span className="text-sm text-slate-600">
-                          Didn&apos;t receive the code?
-                        </span>
-
-                        {emailResendSeconds > 0 ? (
-                          <span className="text-sm font-semibold text-slate-500">
-                            Resend in{" "}
-                            {formatTimer(
-                              emailResendSeconds,
-                            )}
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={
-                              handleResendEmailOtp
-                            }
-                            className="text-sm font-bold text-blue-700"
-                          >
-                            Resend OTP
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                {/* Mobile Number */}
-                <div>
-                  <label
-                    htmlFor="mobileNumber"
-                    className="text-base font-semibold text-slate-800"
-                  >
-                    Mobile number
-                  </label>
-
-                  <div className="mt-2 flex flex-col gap-3 sm:flex-row">
-                    <div className="flex min-w-0 flex-1 items-center rounded-xl border border-slate-300 bg-slate-50 transition focus-within:border-blue-600 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-100">
-                      <span className="border-r border-slate-300 px-4 py-4 font-bold text-slate-700">
-                        +91
-                      </span>
-
-                      <input
-                        id="mobileNumber"
-                        type="tel"
-                        inputMode="numeric"
-                        maxLength={10}
-                        value={mobileNumber}
-                        disabled={isMobileVerified}
-                        onChange={(event) => {
-                          const numberValue =
-                            event.target.value
-                              .replace(/\D/g, "")
-                              .slice(0, 10);
-
-                          setMobileNumber(numberValue);
-                          resetMobileVerification();
-                          clearError();
-                        }}
-                        placeholder="Enter 10-digit number"
-                        autoComplete="tel"
-                        className="min-w-0 flex-1 bg-transparent px-4 py-4 text-base font-medium text-slate-950 outline-none placeholder:text-slate-500 disabled:cursor-not-allowed"
-                      />
-                    </div>
-
-                    {!mobileOtpSent &&
-                      !isMobileVerified && (
-                        <button
-                          type="button"
-                          onClick={
-                            handleSendMobileOtp
-                          }
-                          className="shrink-0 rounded-xl bg-slate-950 px-6 py-4 text-base font-bold text-white transition hover:bg-slate-800"
-                        >
-                          Send OTP
-                        </button>
-                      )}
-                  </div>
-
-                  {isMobileVerified && (
-                    <p className="mt-3 font-semibold text-emerald-700">
-                      ✓ Mobile number verified
-                    </p>
-                  )}
-                </div>
-
-                {/* Mobile OTP */}
-                {mobileOtpSent &&
-                  !isMobileVerified && (
-                    <div className="rounded-2xl border border-violet-200 bg-violet-50 p-5">
-                      <label
-                        htmlFor="mobileOtp"
-                        className="text-base font-semibold text-slate-800"
-                      >
-                        Mobile verification code
-                      </label>
-
-                      <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-                        <input
-                          id="mobileOtp"
-                          type="text"
-                          inputMode="numeric"
-                          maxLength={6}
-                          value={mobileOtp}
-                          onChange={(event) => {
-                            setMobileOtp(
-                              event.target.value
-                                .replace(/\D/g, "")
-                                .slice(0, 6),
-                            );
-
-                            clearError();
-                          }}
-                          placeholder="Enter 6-digit OTP"
-                          className="min-w-0 flex-1 rounded-xl border border-violet-200 bg-white px-5 py-4 text-center text-base font-bold tracking-[0.2em] text-slate-950 outline-none focus:border-violet-600 focus:ring-4 focus:ring-violet-100"
-                        />
-
-                        <button
-                          type="button"
-                          onClick={
-                            handleVerifyMobileOtp
-                          }
-                          className="rounded-xl bg-violet-700 px-6 py-4 font-bold text-white hover:bg-violet-800"
-                        >
-                          Verify
-                        </button>
-                      </div>
-
-                      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                        <span className="text-sm text-slate-600">
-                          Didn&apos;t receive the code?
-                        </span>
-
-                        {mobileResendSeconds > 0 ? (
-                          <span className="text-sm font-semibold text-slate-500">
-                            Resend in{" "}
-                            {formatTimer(
-                              mobileResendSeconds,
-                            )}
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={
-                              handleResendMobileOtp
-                            }
-                            className="text-sm font-bold text-violet-700"
-                          >
-                            Resend OTP
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                {/* Password */}
-                <div>
-                  <label
-                    htmlFor="signupPassword"
-                    className="text-base font-semibold text-slate-800"
-                  >
-                    Password
-                  </label>
-
-                  <div className="mt-2 flex items-center rounded-xl border border-slate-300 bg-slate-50 px-5 transition focus-within:border-blue-600 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-100">
-                    <input
-                      id="signupPassword"
-                      type={
-                        showPassword
-                          ? "text"
-                          : "password"
-                      }
-                      value={password}
-                      onChange={(event) => {
-                        setPassword(
-                          event.target.value,
-                        );
-                        clearError();
-                      }}
-                      placeholder="Minimum 8 characters"
-                      autoComplete="new-password"
-                      className="w-full bg-transparent py-4 text-base font-medium text-slate-950 outline-none placeholder:text-slate-500"
-                    />
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setShowPassword(
-                          (previous) => !previous,
-                        )
-                      }
-                      className="ml-3 text-sm font-bold text-blue-700"
-                    >
-                      {showPassword ? "Hide" : "Show"}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Confirm Password */}
-                <div>
-                  <label
-                    htmlFor="confirmPassword"
-                    className="text-base font-semibold text-slate-800"
-                  >
-                    Confirm password
-                  </label>
-
-                  <div className="mt-2 flex items-center rounded-xl border border-slate-300 bg-slate-50 px-5 transition focus-within:border-blue-600 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-100">
-                    <input
-                      id="confirmPassword"
-                      type={
-                        showConfirmPassword
-                          ? "text"
-                          : "password"
-                      }
-                      value={confirmPassword}
-                      onChange={(event) => {
-                        setConfirmPassword(
-                          event.target.value,
-                        );
-                        clearError();
-                      }}
-                      placeholder="Enter password again"
-                      autoComplete="new-password"
-                      className="w-full bg-transparent py-4 text-base font-medium text-slate-950 outline-none placeholder:text-slate-500"
-                    />
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setShowConfirmPassword(
-                          (previous) => !previous,
-                        )
-                      }
-                      className="ml-3 text-sm font-bold text-blue-700"
-                    >
-                      {showConfirmPassword
-                        ? "Hide"
-                        : "Show"}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Terms */}
-                <label className="flex cursor-pointer items-start gap-3">
-                  <input
-                    type="checkbox"
-                    checked={agreeTerms}
-                    onChange={(event) => {
-                      setAgreeTerms(
-                        event.target.checked,
-                      );
-                      clearError();
-                    }}
-                    className="mt-1 h-5 w-5 accent-blue-600"
-                  />
-
-                  <span className="text-base leading-7 text-slate-700">
-                    I agree to the{" "}
-                    <span className="font-bold text-blue-700">
-                      Terms
-                    </span>{" "}
-                    and{" "}
-                    <span className="font-bold text-blue-700">
-                      Privacy Policy
-                    </span>
-                    .
-                  </span>
-                </label>
-
-                {/* Error */}
-                {errorMessage && (
-                  <div className="rounded-xl border border-rose-300 bg-rose-50 p-4 font-medium text-rose-800">
-                    {errorMessage}
-                  </div>
-                )}
-
-                {/* Create Account */}
                 <button
                   type="submit"
-                  className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-5 py-4 text-base font-bold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5"
+                  disabled={
+                    isLoading
+                  }
+                  className="flex h-11 w-full items-center justify-center rounded-xl bg-blue-600 px-4 text-xs font-semibold text-white shadow-sm shadow-blue-600/20 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Create Account
+                  {isLoading
+                    ? "Creating workspace…"
+                    : "Create workspace"}
                 </button>
               </form>
 
-              <p className="mt-8 text-center text-base text-slate-600">
-                Already have an account?{" "}
-                <Link
-                  href="/login"
-                  className="font-bold text-blue-700 hover:text-blue-900"
-                >
-                  Sign in
-                </Link>
-              </p>
+              <div className="mt-6 border-t border-slate-200 pt-5 text-center">
+                <p className="text-xs text-slate-500">
+                  Already have an
+                  account?{" "}
+                  <Link
+                    href="/"
+                    className="font-semibold text-blue-600 transition hover:text-blue-700"
+                  >
+                    Sign in
+                  </Link>
+                </p>
+              </div>
+            </section>
+
+            <div className="mt-5 flex items-center justify-center gap-2 text-center text-[10px] leading-5 text-slate-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+
+              Project LOOP ·
+              Authenticated workspace
+              registration
             </div>
           </div>
         </section>
       </div>
     </main>
+  );
+}
+
+function FeatureCard({
+  number,
+  title,
+  description,
+}: {
+  number: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <article className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 shadow-sm shadow-black/10">
+      <div className="flex items-center justify-between">
+        <p className="text-[9px] font-semibold text-blue-400">
+          {number}
+        </p>
+
+        <span className="h-1.5 w-1.5 rounded-full bg-slate-700" />
+      </div>
+
+      <p className="mt-2 text-xs font-semibold text-slate-200">
+        {title}
+      </p>
+
+      <p className="mt-1.5 text-[10px] leading-5 text-slate-500">
+        {description}
+      </p>
+    </article>
+  );
+}
+
+function Field({
+  label,
+  type,
+  value,
+  placeholder,
+  autoComplete,
+  onChange,
+}: {
+  label: string;
+  type: string;
+  value: string;
+  placeholder: string;
+  autoComplete: string;
+  onChange: (
+    value: string,
+  ) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+        {label}
+      </span>
+
+      <input
+        type={type}
+        required
+        value={value}
+        placeholder={
+          placeholder
+        }
+        autoComplete={
+          autoComplete
+        }
+        onChange={(
+          event,
+        ) =>
+          onChange(
+            event.target.value,
+          )
+        }
+        className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-xs text-slate-950 outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
+      />
+    </label>
+  );
+}
+
+function MessageBox({
+  tone,
+  message,
+}: {
+  tone:
+    | "error"
+    | "success";
+  message: string;
+}) {
+  const styles =
+    tone === "success"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : "border-rose-200 bg-rose-50 text-rose-700";
+
+  return (
+    <div
+      className={`mb-5 rounded-xl border p-3 text-[11px] leading-5 ${styles}`}
+    >
+      {message}
+    </div>
+  );
+}
+
+function Divider() {
+  return (
+    <div className="my-5 flex items-center gap-3">
+      <span className="h-px flex-1 bg-slate-200" />
+
+      <span className="text-[9px] font-medium uppercase tracking-[0.14em] text-slate-400">
+        or use credentials
+      </span>
+
+      <span className="h-px flex-1 bg-slate-200" />
+    </div>
+  );
+}
+
+function GoogleIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path
+        fill="#4285F4"
+        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09Z"
+      />
+
+      <path
+        fill="#34A853"
+        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23Z"
+      />
+
+      <path
+        fill="#FBBC05"
+        d="M5.84 14.09A6.9 6.9 0 0 1 5.49 12c0-.73.13-1.43.35-2.09V7.06H2.18A10.96 10.96 0 0 0 1 12c0 1.78.43 3.45 1.18 4.94l2.85-2.22.81-.63Z"
+      />
+
+      <path
+        fill="#EA4335"
+        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38Z"
+      />
+    </svg>
   );
 }
