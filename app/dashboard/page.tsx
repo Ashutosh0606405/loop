@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+
 import {
   useEffect,
   useMemo,
@@ -12,961 +13,810 @@ import LoopShell from "../../components/LoopShell";
 
 type RangeKey = "7D" | "30D" | "90D";
 
-type MetricTone =
-  | "blue"
-  | "emerald"
-  | "rose"
-  | "violet";
+type Sentiment =
+  | "POSITIVE"
+  | "NEGATIVE"
+  | "NEUTRAL";
 
-type InsightTone =
-  | "blue"
-  | "emerald"
-  | "rose"
-  | "amber";
+type FeedbackStatus =
+  | "NEW"
+  | "REVIEWED"
+  | "ACTIONED";
 
-type InsightLabel =
-  | "All"
-  | "Positive"
-  | "Negative"
-  | "Urgent";
-
-type IconName =
-  | "feedback"
-  | "positive"
-  | "issue"
-  | "ai"
-  | "spark"
-  | "report"
-  | "message"
-  | "health"
-  | "clock"
-  | "pin"
-  | "plus"
-  | "refresh"
-  | "download"
-  | "arrow"
-  | "check";
-
-type SummaryCard = {
-  title: string;
-  value: string;
-  change: string;
-  description: string;
-  tone: MetricTone;
-  icon: IconName;
-  sparkline: number[];
+type ThemeRelation = {
+  theme?: {
+    id?: string;
+    name?: string;
+  } | null;
 };
 
-type Insight = {
+type FeedbackItem = {
   id: string;
-  label: InsightLabel;
-  title: string;
-  description: string;
-  badge: string;
-  recommendation: string;
-  tone: InsightTone;
-  metric: string;
-  metricLabel: string;
-  href: string;
+  content: string;
+  customerName?: string | null;
+  channel?: string | null;
+  sentiment?: Sentiment | null;
+  status?: FeedbackStatus | null;
+  createdAt: string;
+  themes?: ThemeRelation[];
 };
 
-const rangeOptions: {
-  key: RangeKey;
+type FeedbackResponse = {
+  data: FeedbackItem[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+};
+
+type ActivityItem = {
   label: string;
+  count: number;
+};
+
+const ranges: {
+  key: RangeKey;
+  days: number;
 }[] = [
   {
     key: "7D",
-    label: "7 days",
+    days: 7,
   },
   {
     key: "30D",
-    label: "30 days",
+    days: 30,
   },
   {
     key: "90D",
-    label: "90 days",
+    days: 90,
   },
 ];
 
-const summaryData: Record<
-  RangeKey,
-  SummaryCard[]
-> = {
-  "7D": [
-    {
-      title: "Total Feedback",
-      value: "1,186",
-      change: "+12.5%",
-      description: "Compared to last week",
-      tone: "blue",
-      icon: "feedback",
-      sparkline: [
-        38, 52, 45, 68, 59, 75, 82,
-      ],
-    },
-    {
-      title: "Positive Feedback",
-      value: "728",
-      change: "+8.4%",
-      description: "61% of total feedback",
-      tone: "emerald",
-      icon: "positive",
-      sparkline: [
-        42, 48, 54, 59, 63, 67, 74,
-      ],
-    },
-    {
-      title: "Open Issues",
-      value: "38",
-      change: "-4.2%",
-      description: "Needs team attention",
-      tone: "rose",
-      icon: "issue",
-      sparkline: [
-        78, 72, 65, 61, 55, 48, 42,
-      ],
-    },
-    {
-      title: "AI Confidence",
-      value: "94.2%",
-      change: "+2.1%",
-      description: "Analysis accuracy",
-      tone: "violet",
-      icon: "ai",
-      sparkline: [
-        72, 74, 79, 83, 87, 91, 94,
-      ],
-    },
-  ],
+function startOfDay(value: Date) {
+  const date = new Date(value);
 
-  "30D": [
-    {
-      title: "Total Feedback",
-      value: "4,892",
-      change: "+18.7%",
-      description: "Compared to last month",
-      tone: "blue",
-      icon: "feedback",
-      sparkline: [
-        44, 51, 57, 53, 66, 72, 85,
-      ],
-    },
-    {
-      title: "Positive Feedback",
-      value: "3,021",
-      change: "+11.2%",
-      description: "62% of total feedback",
-      tone: "emerald",
-      icon: "positive",
-      sparkline: [
-        48, 52, 56, 61, 67, 72, 78,
-      ],
-    },
-    {
-      title: "Open Issues",
-      value: "126",
-      change: "-7.8%",
-      description: "Needs team attention",
-      tone: "rose",
-      icon: "issue",
-      sparkline: [
-        83, 76, 69, 65, 58, 49, 43,
-      ],
-    },
-    {
-      title: "AI Confidence",
-      value: "95.1%",
-      change: "+3.4%",
-      description: "Analysis accuracy",
-      tone: "violet",
-      icon: "ai",
-      sparkline: [
-        70, 76, 80, 84, 88, 92, 96,
-      ],
-    },
-  ],
+  date.setHours(0, 0, 0, 0);
 
-  "90D": [
-    {
-      title: "Total Feedback",
-      value: "14,648",
-      change: "+24.8%",
-      description:
-        "Compared to previous period",
-      tone: "blue",
-      icon: "feedback",
-      sparkline: [
-        39, 47, 52, 61, 69, 77, 89,
-      ],
-    },
-    {
-      title: "Positive Feedback",
-      value: "9,126",
-      change: "+16.5%",
-      description: "62% of total feedback",
-      tone: "emerald",
-      icon: "positive",
-      sparkline: [
-        45, 51, 58, 63, 68, 75, 84,
-      ],
-    },
-    {
-      title: "Open Issues",
-      value: "354",
-      change: "-10.3%",
-      description: "Needs team attention",
-      tone: "rose",
-      icon: "issue",
-      sparkline: [
-        87, 80, 72, 64, 57, 48, 39,
-      ],
-    },
-    {
-      title: "AI Confidence",
-      value: "96.4%",
-      change: "+4.6%",
-      description: "Analysis accuracy",
-      tone: "violet",
-      icon: "ai",
-      sparkline: [
-        68, 73, 79, 85, 89, 93, 97,
-      ],
-    },
-  ],
-};
+  return date;
+}
 
-const workspaceHealthData: Record<
-  RangeKey,
-  {
-    score: number;
-    status: string;
-    description: string;
-    positiveSentiment: number;
-    issueResolution: number;
-    aiCoverage: number;
-    responseHealth: number;
-    lastUpdated: string;
-  }
-> = {
-  "7D": {
-    score: 86,
-    status: "Healthy",
-    description:
-      "Customer sentiment is stable and issue volume is moving in the right direction.",
-    positiveSentiment: 88,
-    issueResolution: 79,
-    aiCoverage: 94,
-    responseHealth: 83,
-    lastUpdated: "2 minutes ago",
-  },
+function endOfDay(value: Date) {
+  const date = new Date(value);
 
-  "30D": {
-    score: 89,
-    status: "Strong",
-    description:
-      "Feedback quality is improving with fewer unresolved customer issues.",
-    positiveSentiment: 91,
-    issueResolution: 84,
-    aiCoverage: 95,
-    responseHealth: 86,
-    lastUpdated: "4 minutes ago",
-  },
-
-  "90D": {
-    score: 92,
-    status: "Excellent",
-    description:
-      "Customer experience, AI coverage and issue resolution are performing strongly.",
-    positiveSentiment: 93,
-    issueResolution: 88,
-    aiCoverage: 96,
-    responseHealth: 90,
-    lastUpdated: "6 minutes ago",
-  },
-};
-
-const comparisonData: Record<
-  RangeKey,
-  {
-    feedbackChange: string;
-    sentimentChange: string;
-    issueChange: string;
-    responseChange: string;
-    currentLabel: string;
-    previousLabel: string;
-  }
-> = {
-  "7D": {
-    feedbackChange: "+12.5%",
-    sentimentChange: "+8.4%",
-    issueChange: "-4.2%",
-    responseChange: "+6.8%",
-    currentLabel: "Current week",
-    previousLabel: "Previous week",
-  },
-
-  "30D": {
-    feedbackChange: "+18.7%",
-    sentimentChange: "+11.2%",
-    issueChange: "-7.8%",
-    responseChange: "+9.5%",
-    currentLabel: "Current 30 days",
-    previousLabel: "Previous 30 days",
-  },
-
-  "90D": {
-    feedbackChange: "+24.8%",
-    sentimentChange: "+16.5%",
-    issueChange: "-10.3%",
-    responseChange: "+12.1%",
-    currentLabel: "Current 90 days",
-    previousLabel: "Previous 90 days",
-  },
-};
-
-const insightOptions: Insight[] = [
-  {
-    id: "overall-experience",
-    label: "All",
-    title: "Overall Customer Experience",
-    description:
-      "Customer satisfaction is improving. Product quality and faster support responses are the strongest positive drivers.",
-    badge: "Stable performance",
-    recommendation:
-      "Continue monitoring checkout speed while maintaining the current support response time.",
-    tone: "blue",
-    metric: "84/100",
-    metricLabel: "Experience score",
-    href: "/reports",
-  },
-
-  {
-    id: "positive-momentum",
-    label: "Positive",
-    title: "Positive Feedback Momentum",
-    description:
-      "Customers appreciate the clean interface, reliable product quality and quick support response.",
-    badge: "61% positive",
-    recommendation:
-      "Highlight product quality and responsive support in customer-facing communication.",
-    tone: "emerald",
-    metric: "+8.4%",
-    metricLabel: "Positive momentum",
-    href: "/feedback",
-  },
-
-  {
-    id: "negative-risk",
-    label: "Negative",
-    title: "Negative Feedback Risk",
-    description:
-      "Most negative feedback is related to payment delays, application speed and checkout performance.",
-    badge: "16% negative",
-    recommendation:
-      "Prioritise payment confirmation and checkout performance improvements.",
-    tone: "rose",
-    metric: "185",
-    metricLabel: "Negative records",
-    href: "/feedback",
-  },
-
-  {
-    id: "urgent-action",
-    label: "Urgent",
-    title:
-      "Urgent Issues Requiring Attention",
-    description:
-      "Checkout slowdown and delayed payment confirmations need immediate investigation.",
-    badge: "3 urgent issues",
-    recommendation:
-      "Assign owners and resolution deadlines for the three urgent issues.",
-    tone: "amber",
-    metric: "3",
-    metricLabel: "Urgent issues",
-    href: "/feedback",
-  },
-];
-
-const activityData: Record<
-  RangeKey,
-  {
-    label: string;
-    height: number;
-    feedback: number;
-  }[]
-> = {
-  "7D": [
-    {
-      label: "Mon",
-      height: 48,
-      feedback: 142,
-    },
-    {
-      label: "Tue",
-      height: 62,
-      feedback: 183,
-    },
-    {
-      label: "Wed",
-      height: 54,
-      feedback: 159,
-    },
-    {
-      label: "Thu",
-      height: 76,
-      feedback: 224,
-    },
-    {
-      label: "Fri",
-      height: 68,
-      feedback: 201,
-    },
-    {
-      label: "Sat",
-      height: 42,
-      feedback: 124,
-    },
-    {
-      label: "Sun",
-      height: 52,
-      feedback: 153,
-    },
-  ],
-
-  "30D": [
-    {
-      label: "W1",
-      height: 45,
-      feedback: 642,
-    },
-    {
-      label: "W2",
-      height: 58,
-      feedback: 821,
-    },
-    {
-      label: "W3",
-      height: 72,
-      feedback: 1018,
-    },
-    {
-      label: "W4",
-      height: 84,
-      feedback: 1186,
-    },
-    {
-      label: "W5",
-      height: 69,
-      feedback: 978,
-    },
-    {
-      label: "W6",
-      height: 78,
-      feedback: 1104,
-    },
-    {
-      label: "Now",
-      height: 88,
-      feedback: 1248,
-    },
-  ],
-
-  "90D": [
-    {
-      label: "Apr",
-      height: 46,
-      feedback: 3248,
-    },
-    {
-      label: "May",
-      height: 55,
-      feedback: 3872,
-    },
-    {
-      label: "Jun",
-      height: 63,
-      feedback: 4480,
-    },
-    {
-      label: "Jul",
-      height: 78,
-      feedback: 5612,
-    },
-    {
-      label: "Aug",
-      height: 70,
-      feedback: 4986,
-    },
-    {
-      label: "Sep",
-      height: 82,
-      feedback: 5924,
-    },
-    {
-      label: "Now",
-      height: 91,
-      feedback: 6480,
-    },
-  ],
-};
-
-const sentimentData = [
-  {
-    name: "Positive",
-    percentage: 61,
-    count: 728,
-    barClass: "bg-emerald-500",
-    dotClass: "bg-emerald-500",
-    textClass: "text-emerald-700",
-  },
-  {
-    name: "Neutral",
-    percentage: 23,
-    count: 273,
-    barClass: "bg-amber-400",
-    dotClass: "bg-amber-400",
-    textClass: "text-amber-700",
-  },
-  {
-    name: "Negative",
-    percentage: 16,
-    count: 185,
-    barClass: "bg-rose-500",
-    dotClass: "bg-rose-500",
-    textClass: "text-rose-700",
-  },
-];
-
-const trendingThemes = [
-  {
-    name: "Product Quality",
-    mentions: 386,
-    percentage: 82,
-    trend: "+18%",
-  },
-  {
-    name: "Application Speed",
-    mentions: 274,
-    percentage: 65,
-    trend: "+12%",
-  },
-  {
-    name: "Payment Issues",
-    mentions: 198,
-    percentage: 48,
-    trend: "+8%",
-  },
-  {
-    name: "Customer Support",
-    mentions: 165,
-    percentage: 39,
-    trend: "+5%",
-  },
-];
-
-const urgentIssues = [
-  {
-    title: "Checkout slowdown",
-    description:
-      "Multiple customers reported slow checkout performance.",
-    status: "High Priority",
-    statusClass:
-      "bg-rose-100 text-rose-700",
-    accentClass: "bg-rose-500",
-    owner: "Engineering",
-    due: "Today",
-  },
-  {
-    title:
-      "Payment confirmation delay",
-    description:
-      "Payment confirmation is taking longer than expected.",
-    status: "Investigating",
-    statusClass:
-      "bg-amber-100 text-amber-700",
-    accentClass: "bg-amber-500",
-    owner: "Payments",
-    due: "Tomorrow",
-  },
-  {
-    title: "Onboarding confusion",
-    description:
-      "New users need clearer guidance during account setup.",
-    status: "Medium",
-    statusClass:
-      "bg-blue-100 text-blue-700",
-    accentClass: "bg-blue-500",
-    owner: "Product",
-    due: "2 days",
-  },
-];
-
-const recentFeedback = [
-  {
-    id: "FB-1042",
-    customer: "Ananya R",
-    initials: "AR",
-    feedback:
-      "The application is easy to use and the interface looks clean.",
-    sentiment: "Positive",
-    sentimentClass:
-      "bg-emerald-100 text-emerald-700",
-    source: "Web App",
-    time: "10 min ago",
-  },
-  {
-    id: "FB-1041",
-    customer: "Rahul K",
-    initials: "RK",
-    feedback:
-      "Payment confirmation took more time than expected.",
-    sentiment: "Negative",
-    sentimentClass:
-      "bg-rose-100 text-rose-700",
-    source: "Email",
-    time: "34 min ago",
-  },
-  {
-    id: "FB-1040",
-    customer: "Meena S",
-    initials: "MS",
-    feedback:
-      "Customer support solved my issue quickly.",
-    sentiment: "Positive",
-    sentimentClass:
-      "bg-emerald-100 text-emerald-700",
-    source: "Support",
-    time: "1 hour ago",
-  },
-  {
-    id: "FB-1039",
-    customer: "Arun P",
-    initials: "AP",
-    feedback:
-      "The dashboard is useful, but reports could load faster.",
-    sentiment: "Neutral",
-    sentimentClass:
-      "bg-amber-100 text-amber-700",
-    source: "Survey",
-    time: "2 hours ago",
-  },
-];
-
-const quickActions = [
-  {
-    title: "Ask LOOP",
-    description:
-      "Ask questions using customer feedback data.",
-    href: "/ask-loop",
-    icon: "spark" as IconName,
-    className:
-      "bg-violet-100 text-violet-700",
-  },
-  {
-    title: "Review Feedback",
-    description:
-      "View and classify recent customer feedback.",
-    href: "/feedback",
-    icon: "message" as IconName,
-    className:
-      "bg-blue-100 text-blue-700",
-  },
-  {
-    title: "Generate Report",
-    description:
-      "Open AI-powered feedback reports.",
-    href: "/reports",
-    icon: "report" as IconName,
-    className:
-      "bg-emerald-100 text-emerald-700",
-  },
-];
-
-const pinnedInsightsStorageKey =
-  "loop-dashboard-pinned-insights";
-
-const defaultPinnedInsightIds = [
-  "positive-momentum",
-  "urgent-action",
-];
-
-export default function DashboardPage() {
-  const [selectedRange, setSelectedRange] =
-    useState<RangeKey>("7D");
-
-  const [
-    selectedInsight,
-    setSelectedInsight,
-  ] = useState<InsightLabel>("All");
-
-  const [
-    pinnedInsightIds,
-    setPinnedInsightIds,
-  ] = useState<string[]>(
-    defaultPinnedInsightIds,
+  date.setHours(
+    23,
+    59,
+    59,
+    999,
   );
 
+  return date;
+}
+
+function getRangeDays(
+  range: RangeKey,
+) {
+  return (
+    ranges.find(
+      (item) =>
+        item.key === range,
+    )?.days ?? 7
+  );
+}
+
+function getRangeDates(
+  days: number,
+) {
+  const end =
+    endOfDay(new Date());
+
+  const start =
+    startOfDay(new Date());
+
+  start.setDate(
+    start.getDate() -
+      (days - 1),
+  );
+
+  return {
+    start,
+    end,
+  };
+}
+
+function filterByRange(
+  items: FeedbackItem[],
+  start: Date,
+  end: Date,
+) {
+  return items.filter(
+    (item) => {
+      const date =
+        new Date(
+          item.createdAt,
+        );
+
+      if (
+        Number.isNaN(
+          date.getTime(),
+        )
+      ) {
+        return false;
+      }
+
+      return (
+        date >= start &&
+        date <= end
+      );
+    },
+  );
+}
+
+function isClassified(
+  item: FeedbackItem,
+): item is FeedbackItem & {
+  sentiment: Sentiment;
+} {
+  return (
+    item.sentiment === "POSITIVE" ||
+    item.sentiment === "NEUTRAL" ||
+    item.sentiment === "NEGATIVE"
+  );
+}
+
+function percentage(
+  value: number,
+  total: number,
+) {
+  if (total <= 0) {
+    return 0;
+  }
+
+  return Math.round(
+    (value / total) * 100,
+  );
+}
+
+function formatDate(
+  value: string,
+) {
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime(),
+    )
+  ) {
+    return "Unknown date";
+  }
+
+  return new Intl.DateTimeFormat(
+    "en-IN",
+    {
+      dateStyle: "medium",
+      timeStyle: "short",
+    },
+  ).format(date);
+}
+
+function formatShortDate(
+  date: Date,
+) {
+  return new Intl.DateTimeFormat(
+    "en-IN",
+    {
+      day: "numeric",
+      month: "short",
+    },
+  ).format(date);
+}
+
+function getInitials(
+  name?: string | null,
+) {
+  const value =
+    name?.trim() ||
+    "Anonymous Customer";
+
+  return (
+    value
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) =>
+        part
+          .charAt(0)
+          .toUpperCase(),
+      )
+      .join("") || "AC"
+  );
+}
+
+async function fetchAllFeedback(
+  signal: AbortSignal,
+) {
+  const results:
+    FeedbackItem[] = [];
+
+  let page = 1;
+  let totalPages = 1;
+
+  do {
+    const response =
+      await fetch(
+        `/api/feedback?page=${page}&limit=100`,
+        {
+          cache: "no-store",
+          signal,
+        },
+      );
+
+    if (!response.ok) {
+      const body =
+        await response
+          .json()
+          .catch(
+            () => null,
+          );
+
+      const message =
+        body &&
+        typeof body ===
+          "object" &&
+        "error" in body &&
+        typeof body.error ===
+          "string"
+          ? body.error
+          : "Unable to load dashboard data.";
+
+      throw new Error(
+        message,
+      );
+    }
+
+    const payload =
+      (await response.json()) as
+        FeedbackResponse;
+
+    if (
+      !Array.isArray(
+        payload.data,
+      )
+    ) {
+      throw new Error(
+        "Unexpected feedback response.",
+      );
+    }
+
+    results.push(
+      ...payload.data,
+    );
+
+    totalPages =
+      Math.max(
+        1,
+        payload.meta
+          ?.totalPages ?? 1,
+      );
+
+    page += 1;
+  } while (
+    page <= totalPages
+  );
+
+  return results;
+}
+
+function createActivity(
+  feedback: FeedbackItem[],
+  days: number,
+) {
+  const end =
+    endOfDay(new Date());
+
+  if (days === 7) {
+    return Array.from(
+      {
+        length: 7,
+      },
+      (_, index) => {
+        const day =
+          startOfDay(end);
+
+        day.setDate(
+          day.getDate() -
+            (6 - index),
+        );
+
+        return {
+          label:
+            new Intl.DateTimeFormat(
+              "en-IN",
+              {
+                weekday:
+                  "short",
+              },
+            ).format(day),
+
+          count:
+            filterByRange(
+              feedback,
+              day,
+              endOfDay(day),
+            ).length,
+        };
+      },
+    );
+  }
+
+  const bucketCount = 6;
+
+  const bucketSize =
+    Math.ceil(
+      days /
+        bucketCount,
+    );
+
+  const requestedStart =
+    startOfDay(end);
+
+  requestedStart.setDate(
+    requestedStart.getDate() -
+      (days - 1),
+  );
+
+  return Array.from(
+    {
+      length:
+        bucketCount,
+    },
+    (_, index) => {
+      const bucketEnd =
+        endOfDay(end);
+
+      bucketEnd.setDate(
+        bucketEnd.getDate() -
+          (bucketCount -
+            index -
+            1) *
+            bucketSize,
+      );
+
+      const bucketStart =
+        startOfDay(
+          bucketEnd,
+        );
+
+      bucketStart.setDate(
+        bucketStart.getDate() -
+          (bucketSize - 1),
+      );
+
+      if (
+        bucketStart <
+        requestedStart
+      ) {
+        bucketStart.setTime(
+          requestedStart.getTime(),
+        );
+      }
+
+      return {
+        label:
+          formatShortDate(
+            bucketStart,
+          ),
+
+        count:
+          filterByRange(
+            feedback,
+            bucketStart,
+            bucketEnd,
+          ).length,
+      };
+    },
+  );
+}
+
+export default function DashboardPage() {
   const [
-    isRefreshing,
-    setIsRefreshing,
-  ] = useState(false);
+    selectedRange,
+    setSelectedRange,
+  ] =
+    useState<RangeKey>(
+      "7D",
+    );
 
   const [
-    toastMessage,
-    setToastMessage,
-  ] = useState("");
+    feedback,
+    setFeedback,
+  ] =
+    useState<
+      FeedbackItem[]
+    >([]);
 
-  const currentSummary =
-    summaryData[selectedRange];
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(true);
 
-  const currentHealth =
-    workspaceHealthData[selectedRange];
+  const [
+    error,
+    setError,
+  ] =
+    useState("");
 
-  const currentComparison =
-    comparisonData[selectedRange];
-
-  const currentActivity =
-    activityData[selectedRange];
-
-  const activeInsight =
-    insightOptions.find(
-      (insight) =>
-        insight.label ===
-        selectedInsight,
-    ) ?? insightOptions[0];
-
-  const pinnedInsights =
-    useMemo(
-      () =>
-        insightOptions.filter(
-          (insight) =>
-            pinnedInsightIds.includes(
-              insight.id,
-            ),
-        ),
-      [pinnedInsightIds],
-    );
-
-  const availableInsightToPin =
-    useMemo(
-      () =>
-        insightOptions.find(
-          (insight) =>
-            !pinnedInsightIds.includes(
-              insight.id,
-            ),
-        ),
-      [pinnedInsightIds],
-    );
-
-  const activeInsightIsPinned =
-    pinnedInsightIds.includes(
-      activeInsight.id,
-    );
-
-  const totalActivity =
-    useMemo(
-      () =>
-        currentActivity.reduce(
-          (total, item) =>
-            total + item.feedback,
-          0,
-        ),
-      [currentActivity],
-    );
+  const [
+    refreshKey,
+    setRefreshKey,
+  ] =
+    useState(0);
 
   useEffect(() => {
-    try {
-      const savedValue =
-        window.localStorage.getItem(
-          pinnedInsightsStorageKey,
-        );
+    const controller =
+      new AbortController();
 
-      if (!savedValue) {
-        return;
-      }
+    fetchAllFeedback(
+      controller.signal,
+    )
+      .then(
+        (items) => {
+          setFeedback(
+            items,
+          );
 
-      const parsedValue =
-        JSON.parse(savedValue);
+          setError("");
+        },
+      )
+      .catch(
+        (
+          requestError:
+            unknown,
+        ) => {
+          if (
+            requestError instanceof
+              DOMException &&
+            requestError.name ===
+              "AbortError"
+          ) {
+            return;
+          }
 
-      if (!Array.isArray(parsedValue)) {
-        return;
-      }
+          setError(
+            requestError instanceof
+              Error
+              ? requestError.message
+              : "Unable to load dashboard data.",
+          );
+        },
+      )
+      .finally(() => {
+        if (
+          !controller
+            .signal
+            .aborted
+        ) {
+          setLoading(
+            false,
+          );
+        }
+      });
 
-      const validIds =
-        parsedValue.filter(
-          (
-            value,
-          ): value is string =>
-            typeof value ===
-              "string" &&
-            insightOptions.some(
-              (insight) =>
-                insight.id ===
-                value,
-            ),
-        );
+    return () => {
+      controller.abort();
+    };
+  }, [refreshKey]);
 
-      setPinnedInsightIds(validIds);
-    } catch {
-      setPinnedInsightIds(
-        defaultPinnedInsightIds,
-      );
-    }
-  }, []);
-
-  function showToast(
-    message: string,
-  ) {
-    setToastMessage(message);
-
-    window.setTimeout(() => {
-      setToastMessage("");
-    }, 3000);
-  }
-
-  function handleRefresh() {
-    if (isRefreshing) {
-      return;
-    }
-
-    setIsRefreshing(true);
-
-    window.setTimeout(() => {
-      setIsRefreshing(false);
-
-      showToast(
-        "Dashboard data refreshed successfully.",
-      );
-    }, 1000);
-  }
-
-  function handleExport() {
-    showToast(
-      "Dashboard export is ready for backend integration.",
+  const days =
+    getRangeDays(
+      selectedRange,
     );
-  }
 
-  function updatePinnedInsights(
-    nextIds: string[],
-  ) {
-    setPinnedInsightIds(nextIds);
+  const range =
+    useMemo(
+      () =>
+        getRangeDates(
+          days,
+        ),
+      [days],
+    );
 
-    try {
-      window.localStorage.setItem(
-        pinnedInsightsStorageKey,
-        JSON.stringify(nextIds),
+  const currentFeedback =
+    useMemo(
+      () =>
+        filterByRange(
+          feedback,
+          range.start,
+          range.end,
+        ),
+      [
+        feedback,
+        range,
+      ],
+    );
+
+  const metrics =
+    useMemo(() => {
+      const classified =
+        currentFeedback.filter(
+          isClassified,
+        );
+
+      const positive =
+        classified.filter(
+          (item) =>
+            item.sentiment ===
+            "POSITIVE",
+        ).length;
+
+      const neutral =
+        classified.filter(
+          (item) =>
+            item.sentiment ===
+            "NEUTRAL",
+        ).length;
+
+      const negative =
+        classified.filter(
+          (item) =>
+            item.sentiment ===
+            "NEGATIVE",
+        ).length;
+
+      const newCount =
+        currentFeedback.filter(
+          (item) =>
+            !item.status ||
+            item.status ===
+              "NEW",
+        ).length;
+
+      const reviewed =
+        currentFeedback.filter(
+          (item) =>
+            item.status ===
+            "REVIEWED",
+        ).length;
+
+      const actioned =
+        currentFeedback.filter(
+          (item) =>
+            item.status ===
+            "ACTIONED",
+        ).length;
+
+      const open =
+        currentFeedback.filter(
+          (item) =>
+            item.status !==
+            "ACTIONED",
+        ).length;
+
+      const themeCounts =
+        new Map<
+          string,
+          number
+        >();
+
+      const channelCounts =
+        new Map<
+          string,
+          number
+        >();
+
+      currentFeedback.forEach(
+        (item) => {
+          item.themes?.forEach(
+            (
+              relation,
+            ) => {
+              const theme =
+                relation.theme?.name?.trim();
+
+              if (!theme) {
+                return;
+              }
+
+              themeCounts.set(
+                theme,
+                (themeCounts.get(
+                  theme,
+                ) ?? 0) + 1,
+              );
+            },
+          );
+
+          const channel =
+            item.channel?.trim();
+
+          if (channel) {
+            channelCounts.set(
+              channel,
+              (channelCounts.get(
+                channel,
+              ) ?? 0) + 1,
+            );
+          }
+        },
       );
-    } catch {
-      showToast(
-        "Pinned insights were updated for this session.",
-      );
-    }
-  }
 
-  function togglePinnedInsight(
-    insightId: string,
-  ) {
-    const insight =
-      insightOptions.find(
-        (item) =>
-          item.id === insightId,
-      );
+      return {
+        total:
+          currentFeedback.length,
 
-    if (!insight) {
-      return;
-    }
+        classified:
+          classified.length,
 
-    const alreadyPinned =
-      pinnedInsightIds.includes(
-        insightId,
-      );
+        pending:
+          Math.max(
+            0,
+            currentFeedback.length -
+              classified.length,
+          ),
 
-    const nextIds =
-      alreadyPinned
-        ? pinnedInsightIds.filter(
-            (id) =>
-              id !== insightId,
+        positive,
+        neutral,
+        negative,
+
+        positiveRate:
+          percentage(
+            positive,
+            classified.length,
+          ),
+
+        neutralRate:
+          percentage(
+            neutral,
+            classified.length,
+          ),
+
+        negativeRate:
+          percentage(
+            negative,
+            classified.length,
+          ),
+
+        newCount,
+        reviewed,
+        actioned,
+        open,
+
+        themes: [
+          ...themeCounts.entries(),
+        ]
+          .sort(
+            (a, b) =>
+              b[1] -
+              a[1],
           )
-        : [
-            ...pinnedInsightIds,
-            insightId,
-          ];
+          .slice(
+            0,
+            4,
+          ),
 
-    updatePinnedInsights(nextIds);
+        channels: [
+          ...channelCounts.entries(),
+        ]
+          .sort(
+            (a, b) =>
+              b[1] -
+              a[1],
+          )
+          .slice(
+            0,
+            4,
+          ),
+      };
+    }, [
+      currentFeedback,
+    ]);
 
-    showToast(
-      alreadyPinned
-        ? `${insight.title} removed from pinned insights.`
-        : `${insight.title} pinned to your dashboard.`,
+  const activity =
+    useMemo<ActivityItem[]>(
+      () =>
+        createActivity(
+          currentFeedback,
+          days,
+        ),
+      [
+        currentFeedback,
+        days,
+      ],
     );
-  }
 
-  function pinNextAvailableInsight() {
-    if (!availableInsightToPin) {
-      showToast(
-        "All available insights are already pinned.",
-      );
+  const maxActivity =
+    Math.max(
+      ...activity.map(
+        (item) =>
+          item.count,
+      ),
+      1,
+    );
 
-      return;
-    }
+  const recent =
+    useMemo(
+      () =>
+        [
+          ...currentFeedback,
+        ]
+          .sort(
+            (a, b) =>
+              new Date(
+                b.createdAt,
+              ).getTime() -
+              new Date(
+                a.createdAt,
+              ).getTime(),
+          )
+          .slice(
+            0,
+            5,
+          ),
+      [
+        currentFeedback,
+      ],
+    );
 
-    togglePinnedInsight(
-      availableInsightToPin.id,
+  function refreshDashboard() {
+    setLoading(true);
+
+    setError("");
+
+    setRefreshKey(
+      (current) =>
+        current + 1,
     );
   }
 
   return (
     <LoopShell
       title="Dashboard"
-      subtitle="Monitor customer feedback, sentiment and AI-powered insights."
+      subtitle="Monitor customer feedback, sentiment and themes from your workspace."
     >
-      <div className="relative space-y-6 bg-slate-50/70 p-1 sm:p-2">
-        {toastMessage && (
-          <div className="fixed right-4 top-24 z-50 flex max-w-sm items-center gap-3 rounded-2xl border border-emerald-200 bg-white p-4 text-sm font-semibold text-slate-800 shadow-2xl sm:right-8">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
-              <Icon name="check" />
-            </span>
-
-            <span>
-              {toastMessage}
-            </span>
-          </div>
-        )}
-
-        {/* Controls */}
-        <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+      <div className="mx-auto max-w-[1500px] space-y-5">
+        <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-bold text-slate-950">
-              Analytics Overview
+            <p className="text-xs font-semibold text-slate-950 dark:text-white">
+              Workspace overview
             </p>
 
-            <p className="mt-1 text-xs text-slate-500">
-              Frontend demonstration
-              data · Updated recently
+            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+              {formatShortDate(
+                range.start,
+              )}{" "}
+              —{" "}
+              {formatShortDate(
+                range.end,
+              )}
             </p>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <div className="flex rounded-xl bg-slate-100 p-1">
-              {rangeOptions.map(
-                (option) => (
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+              {ranges.map(
+                (item) => (
                   <button
-                    key={option.key}
+                    key={
+                      item.key
+                    }
                     type="button"
                     onClick={() =>
                       setSelectedRange(
-                        option.key,
+                        item.key,
                       )
                     }
-                    className={`flex-1 rounded-lg px-4 py-2 text-xs font-bold transition sm:flex-none ${
+                    className={`rounded-lg px-4 py-2 text-[11px] font-semibold transition ${
                       selectedRange ===
-                      option.key
-                        ? "bg-white text-slate-950 shadow-sm"
-                        : "text-slate-500 hover:text-slate-800"
+                      item.key
+                        ? "bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white"
+                        : "text-slate-500 hover:text-slate-900 dark:text-slate-400"
                     }`}
                   >
-                    {option.label}
+                    {item.key}
                   </button>
                 ),
               )}
@@ -974,1224 +824,726 @@ export default function DashboardPage() {
 
             <button
               type="button"
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-60"
+              onClick={
+                refreshDashboard
+              }
+              disabled={loading}
+              className="flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
             >
-              <span
-                className={
-                  isRefreshing
-                    ? "animate-spin"
-                    : ""
+              <RefreshIcon
+                spinning={
+                  loading
                 }
-              >
-                <Icon name="refresh" />
-              </span>
+              />
 
-              {isRefreshing
-                ? "Refreshing..."
-                : "Refresh"}
+              Refresh
             </button>
-
-            <button
-              type="button"
-              onClick={handleExport}
-              className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700"
-            >
-              <Icon name="download" />
-
-              Export
-            </button>
-          </div>
-        </section>
-
-        {/* Hero */}
-        <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-blue-50/60 to-violet-50/60 p-6 shadow-sm sm:p-8">
-          <div className="absolute -left-24 top-4 h-72 w-72 rounded-full bg-blue-200/25 blur-3xl" />
-
-          <div className="absolute -right-20 bottom-0 h-72 w-72 rounded-full bg-violet-200/25 blur-3xl" />
-
-          <div className="relative flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
-            <div className="max-w-2xl">
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 shadow-sm">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-
-                  AI Customer Feedback
-                  Intelligence
-                </span>
-
-                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">
-                  Live analysis
-                </span>
-              </div>
-
-              <h2 className="mt-5 text-2xl font-bold leading-tight text-slate-950 sm:text-4xl">
-                Turn every customer
-                voice into actionable
-                insight.
-              </h2>
-
-              <p className="mt-4 max-w-xl text-sm leading-7 text-slate-600 sm:text-base">
-                LOOP analyses feedback,
-                identifies sentiment,
-                discovers trends and
-                helps teams make
-                confident decisions.
-              </p>
-
-              <div className="mt-6 flex flex-wrap gap-4 text-xs font-semibold text-slate-600">
-                <HeroFeature label="Real-time sentiment" />
-
-                <HeroFeature label="Theme detection" />
-
-                <HeroFeature label="Evidence-backed answers" />
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2 lg:w-80 lg:grid-cols-1">
-              <HeroLink
-                href="/ask-loop"
-                title="Ask LOOP"
-                description="Explore customer insights"
-                primary
-              />
-
-              <HeroLink
-                href="/reports"
-                title="View Reports"
-                description="Review detailed analytics"
-              />
-            </div>
-          </div>
-        </section>
-
-        {/* Summary */}
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {currentSummary.map(
-            (card) => (
-              <SummaryMetricCard
-                key={card.title}
-                card={card}
-              />
-            ),
-          )}
-        </section>
-
-        {/* Workspace Health + Pinned Insights */}
-        <section className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
-          <WorkspaceHealthCard
-            health={currentHealth}
-            range={selectedRange}
-          />
-
-          <article className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex flex-col gap-4 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-              <div className="flex items-start gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
-                  <Icon name="pin" />
-                </span>
-
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-lg font-bold text-slate-950">
-                      Pinned Insights
-                    </h3>
-
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">
-                      {
-                        pinnedInsights.length
-                      }{" "}
-                      pinned
-                    </span>
-                  </div>
-
-                  <p className="mt-1 text-sm text-slate-500">
-                    Keep important AI
-                    findings visible for
-                    your team.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={
-                  pinNextAvailableInsight
-                }
-                disabled={
-                  !availableInsightToPin
-                }
-                className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Icon name="plus" />
-
-                {availableInsightToPin
-                  ? "Pin another insight"
-                  : "All insights pinned"}
-              </button>
-            </div>
-
-            {pinnedInsights.length >
-            0 ? (
-              <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
-                {pinnedInsights.map(
-                  (insight) => (
-                    <PinnedInsightCard
-                      key={
-                        insight.id
-                      }
-                      insight={
-                        insight
-                      }
-                      onRemove={() =>
-                        togglePinnedInsight(
-                          insight.id,
-                        )
-                      }
-                    />
-                  ),
-                )}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center px-6 py-12 text-center">
-                <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
-                  <Icon name="pin" />
-                </span>
-
-                <h4 className="mt-4 font-bold text-slate-950">
-                  No pinned insights
-                  yet
-                </h4>
-
-                <p className="mt-2 max-w-sm text-sm text-slate-500">
-                  Pin important AI
-                  insights to create a
-                  focused workspace for
-                  your team.
-                </p>
-
-                <button
-                  type="button"
-                  onClick={
-                    pinNextAvailableInsight
-                  }
-                  className="mt-5 rounded-xl bg-blue-600 px-5 py-3 text-xs font-bold text-white"
-                >
-                  Pin first insight
-                </button>
-              </div>
-            )}
-          </article>
-        </section>
-
-        {/* Compare Performance */}
-        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-4 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">
-                Performance Comparison
-              </p>
-
-              <h3 className="mt-2 text-xl font-bold text-slate-950">
-                {
-                  currentComparison.currentLabel
-                }{" "}
-                vs{" "}
-                {
-                  currentComparison.previousLabel
-                }
-              </h3>
-
-              <p className="mt-1 text-sm text-slate-500">
-                Understand how customer
-                experience is changing
-                over time.
-              </p>
-            </div>
-
-            <span className="w-fit rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-700">
-              Overall improvement
-            </span>
-          </div>
-
-          <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6 xl:grid-cols-4">
-            <ComparisonCard
-              title="Feedback Volume"
-              value={
-                currentComparison.feedbackChange
-              }
-              description="More customer responses"
-            />
-
-            <ComparisonCard
-              title="Positive Sentiment"
-              value={
-                currentComparison.sentimentChange
-              }
-              description="Customer satisfaction"
-            />
-
-            <ComparisonCard
-              title="Open Issues"
-              value={
-                currentComparison.issueChange
-              }
-              description="Fewer unresolved issues"
-            />
-
-            <ComparisonCard
-              title="Response Health"
-              value={
-                currentComparison.responseChange
-              }
-              description="Faster team response"
-            />
-          </div>
-        </section>
-
-        {/* Quick Actions */}
-        <section>
-          <SectionHeading
-            title="Quick Actions"
-            description="Access frequently used LOOP features."
-          />
-
-          <div className="grid gap-4 md:grid-cols-3">
-            {quickActions.map(
-              (action) => (
-                <Link
-                  key={
-                    action.title
-                  }
-                  href={
-                    action.href
-                  }
-                  className="group flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg"
-                >
-                  <span
-                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${action.className}`}
-                  >
-                    <Icon
-                      name={
-                        action.icon
-                      }
-                    />
-                  </span>
-
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-bold text-slate-950">
-                      {
-                        action.title
-                      }
-                    </span>
-
-                    <span className="mt-1 block text-xs leading-5 text-slate-500">
-                      {
-                        action.description
-                      }
-                    </span>
-                  </span>
-
-                  <span className="text-slate-400 transition group-hover:translate-x-1 group-hover:text-blue-600">
-                    <Icon name="arrow" />
-                  </span>
-                </Link>
-              ),
-            )}
-          </div>
-        </section>
-
-        {/* AI Insights */}
-        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-5 border-b border-slate-200 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 text-violet-700">
-                <Icon name="spark" />
-              </span>
-
-              <div>
-                <h3 className="font-bold text-slate-950">
-                  LOOP AI Insights
-                </h3>
-
-                <p className="mt-0.5 text-xs text-slate-500">
-                  Latest AI-generated
-                  analysis
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {insightOptions.map(
-                (insight) => {
-                  const isActive =
-                    selectedInsight ===
-                    insight.label;
-
-                  return (
-                    <button
-                      key={
-                        insight.id
-                      }
-                      type="button"
-                      onClick={() =>
-                        setSelectedInsight(
-                          insight.label,
-                        )
-                      }
-                      className={`rounded-xl px-4 py-2 text-xs font-bold transition ${
-                        isActive
-                          ? "bg-blue-600 text-white shadow-sm"
-                          : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                      }`}
-                    >
-                      {
-                        insight.label
-                      }
-                    </button>
-                  );
-                },
-              )}
-            </div>
-          </div>
-
-          <div className="grid lg:grid-cols-[1fr_330px]">
-            <div
-              className={`p-6 sm:p-8 ${getInsightBackground(
-                activeInsight.tone,
-              )}`}
-            >
-              <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-                <div className="max-w-3xl">
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                    Current Insight
-                  </p>
-
-                  <h4 className="mt-3 text-xl font-bold text-slate-950">
-                    {
-                      activeInsight.title
-                    }
-                  </h4>
-
-                  <p className="mt-3 text-sm leading-7 text-slate-600">
-                    {
-                      activeInsight.description
-                    }
-                  </p>
-
-                  <div className="mt-5 flex flex-wrap items-center gap-3">
-                    <span
-                      className={`rounded-full px-3 py-1.5 text-xs font-bold ${getInsightBadge(
-                        activeInsight.tone,
-                      )}`}
-                    >
-                      {
-                        activeInsight.badge
-                      }
-                    </span>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        togglePinnedInsight(
-                          activeInsight.id,
-                        )
-                      }
-                      className="flex items-center gap-2 rounded-full border border-slate-300 bg-white/80 px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-white"
-                    >
-                      <Icon name="pin" />
-
-                      {activeInsightIsPinned
-                        ? "Remove from pinned"
-                        : "Pin this insight"}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="w-fit rounded-2xl bg-white/80 p-4 text-right shadow-sm">
-                  <p className="text-xs font-semibold text-slate-500">
-                    {
-                      activeInsight.metricLabel
-                    }
-                  </p>
-
-                  <p className="mt-1 text-2xl font-black text-slate-950">
-                    {
-                      activeInsight.metric
-                    }
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="border-t border-slate-200 bg-slate-50 p-6 lg:border-l lg:border-t-0">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-700">
-                Recommended Action
-              </p>
-
-              <p className="mt-4 text-sm leading-7 text-slate-600">
-                {
-                  activeInsight.recommendation
-                }
-              </p>
-
-              <Link
-                href="/ask-loop"
-                className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-blue-700 transition hover:text-blue-800"
-              >
-                Ask a follow-up
-                question
-
-                <Icon name="arrow" />
-              </Link>
-            </div>
-          </div>
-        </section>
-
-        {/* Activity and Sentiment */}
-        <section className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
-          <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-slate-950">
-                  Feedback Activity
-                </h3>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Feedback volume
-                  across the selected
-                  period.
-                </p>
-              </div>
-
-              <div className="rounded-xl bg-blue-50 px-4 py-2">
-                <p className="text-xs font-semibold text-blue-600">
-                  Total activity
-                </p>
-
-                <p className="mt-0.5 text-lg font-black text-blue-800">
-                  {totalActivity.toLocaleString()}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-8 flex h-72 items-end gap-2 border-b border-slate-200 px-1 sm:gap-4">
-              {currentActivity.map(
-                (item) => (
-                  <div
-                    key={`${selectedRange}-${item.label}`}
-                    className="group flex h-full flex-1 flex-col items-center justify-end"
-                  >
-                    <span className="mb-2 hidden text-xs font-bold text-slate-600 sm:block">
-                      {
-                        item.feedback
-                      }
-                    </span>
-
-                    <div className="relative flex h-full w-full max-w-12 items-end overflow-hidden rounded-t-xl bg-slate-100">
-                      <div
-                        className="w-full rounded-t-xl bg-gradient-to-t from-blue-700 via-blue-600 to-violet-500 transition-all duration-500 group-hover:opacity-80"
-                        style={{
-                          height: `${item.height}%`,
-                        }}
-                      />
-                    </div>
-
-                    <span className="mt-3 text-xs font-semibold text-slate-500">
-                      {item.label}
-                    </span>
-                  </div>
-                ),
-              )}
-            </div>
-          </article>
-
-          <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-            <h3 className="text-lg font-bold text-slate-950">
-              Sentiment Overview
-            </h3>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Customer sentiment
-              distribution.
-            </p>
-
-            <div className="mt-7 flex flex-col items-center">
-              <div
-                className="relative flex h-48 w-48 items-center justify-center rounded-full"
-                style={{
-                  background:
-                    "conic-gradient(#10b981 0deg 219.6deg, #f59e0b 219.6deg 302.4deg, #f43f5e 302.4deg 360deg)",
-                }}
-              >
-                <div className="flex h-32 w-32 flex-col items-center justify-center rounded-full bg-white shadow-inner">
-                  <span className="text-3xl font-black text-slate-950">
-                    61%
-                  </span>
-
-                  <span className="mt-1 text-xs font-semibold text-slate-500">
-                    Positive
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-7 w-full space-y-4">
-                {sentimentData.map(
-                  (item) => (
-                    <div
-                      key={
-                        item.name
-                      }
-                    >
-                      <div className="mb-2 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`h-2.5 w-2.5 rounded-full ${item.dotClass}`}
-                          />
-
-                          <span
-                            className={`text-sm font-bold ${item.textClass}`}
-                          >
-                            {
-                              item.name
-                            }
-                          </span>
-                        </div>
-
-                        <span className="text-xs font-bold text-slate-700">
-                          {
-                            item.percentage
-                          }
-                          % ·{" "}
-                          {item.count}
-                        </span>
-                      </div>
-
-                      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                        <div
-                          className={`h-full rounded-full ${item.barClass}`}
-                          style={{
-                            width: `${item.percentage}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ),
-                )}
-              </div>
-            </div>
-          </article>
-        </section>
-
-        {/* Themes + Issues */}
-        <section className="grid gap-6 xl:grid-cols-2">
-          <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-slate-950">
-                  Trending Themes
-                </h3>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Frequently discussed
-                  customer topics.
-                </p>
-              </div>
-
-              <Link
-                href="/reports"
-                className="text-xs font-bold text-blue-700"
-              >
-                View analysis
-              </Link>
-            </div>
-
-            <div className="mt-6 space-y-6">
-              {trendingThemes.map(
-                (
-                  theme,
-                  index,
-                ) => (
-                  <div
-                    key={
-                      theme.name
-                    }
-                  >
-                    <div className="mb-2 flex items-center justify-between gap-4">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-black text-slate-600">
-                          {index +
-                            1}
-                        </span>
-
-                        <div>
-                          <p className="text-sm font-bold text-slate-800">
-                            {
-                              theme.name
-                            }
-                          </p>
-
-                          <p className="mt-0.5 text-xs text-slate-400">
-                            {
-                              theme.mentions
-                            }{" "}
-                            mentions
-                          </p>
-                        </div>
-                      </div>
-
-                      <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700">
-                        {
-                          theme.trend
-                        }
-                      </span>
-                    </div>
-
-                    <div className="ml-11 h-2.5 overflow-hidden rounded-full bg-slate-100">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-blue-600 to-violet-600"
-                        style={{
-                          width: `${theme.percentage}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                ),
-              )}
-            </div>
-          </article>
-
-          <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-slate-950">
-                  Urgent Issues
-                </h3>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Issues requiring
-                  team attention.
-                </p>
-              </div>
-
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 text-sm font-black text-rose-700">
-                {
-                  urgentIssues.length
-                }
-              </span>
-            </div>
-
-            <div className="mt-5 space-y-4">
-              {urgentIssues.map(
-                (issue) => (
-                  <div
-                    key={
-                      issue.title
-                    }
-                    className="relative overflow-hidden rounded-2xl border border-slate-200 p-4 transition hover:bg-slate-50"
-                  >
-                    <span
-                      className={`absolute inset-y-0 left-0 w-1 ${issue.accentClass}`}
-                    />
-
-                    <div className="pl-2">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <p className="text-sm font-bold text-slate-900">
-                            {
-                              issue.title
-                            }
-                          </p>
-
-                          <p className="mt-1 text-xs leading-5 text-slate-500">
-                            {
-                              issue.description
-                            }
-                          </p>
-                        </div>
-
-                        <span
-                          className={`w-fit rounded-full px-2.5 py-1 text-[10px] font-bold ${issue.statusClass}`}
-                        >
-                          {
-                            issue.status
-                          }
-                        </span>
-                      </div>
-
-                      <div className="mt-4 flex flex-wrap gap-4 border-t border-slate-100 pt-3 text-[11px] font-semibold text-slate-500">
-                        <span>
-                          Owner:{" "}
-                          {
-                            issue.owner
-                          }
-                        </span>
-
-                        <span>
-                          Due:{" "}
-                          {issue.due}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ),
-              )}
-            </div>
-          </article>
-        </section>
-
-        {/* Recent Feedback */}
-        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-            <div>
-              <h3 className="text-lg font-bold text-slate-950">
-                Recent Feedback
-              </h3>
-
-              <p className="mt-1 text-sm text-slate-500">
-                Latest customer
-                messages and sentiment
-                results.
-              </p>
-            </div>
 
             <Link
               href="/feedback"
-              className="flex w-fit items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700"
+              className="flex h-9 items-center gap-2 rounded-xl bg-blue-600 px-3.5 text-[11px] font-semibold text-white transition hover:bg-blue-500"
             >
-              View All Feedback
+              <PlusIcon />
 
-              <Icon name="arrow" />
+              Add feedback
             </Link>
-          </div>
-
-          <div className="hidden overflow-x-auto lg:block">
-            <table className="w-full min-w-[900px] text-left">
-              <thead className="bg-slate-50">
-                <tr>
-                  <TableHeading>
-                    Customer
-                  </TableHeading>
-
-                  <TableHeading>
-                    Feedback
-                  </TableHeading>
-
-                  <TableHeading>
-                    Sentiment
-                  </TableHeading>
-
-                  <TableHeading>
-                    Source
-                  </TableHeading>
-
-                  <TableHeading>
-                    Time
-                  </TableHeading>
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-slate-100">
-                {recentFeedback.map(
-                  (item) => (
-                    <tr
-                      key={item.id}
-                      className="transition hover:bg-slate-50"
-                    >
-                      <td className="px-6 py-5">
-                        <div className="flex items-center gap-3">
-                          <Avatar
-                            initials={
-                              item.initials
-                            }
-                          />
-
-                          <div>
-                            <p className="text-sm font-bold text-slate-800">
-                              {
-                                item.customer
-                              }
-                            </p>
-
-                            <p className="mt-0.5 text-xs text-slate-400">
-                              {
-                                item.id
-                              }
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="max-w-md px-6 py-5 text-sm leading-6 text-slate-600">
-                        {
-                          item.feedback
-                        }
-                      </td>
-
-                      <td className="px-6 py-5">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-bold ${item.sentimentClass}`}
-                        >
-                          {
-                            item.sentiment
-                          }
-                        </span>
-                      </td>
-
-                      <td className="px-6 py-5 text-sm font-medium text-slate-600">
-                        {
-                          item.source
-                        }
-                      </td>
-
-                      <td className="px-6 py-5 text-sm text-slate-400">
-                        {
-                          item.time
-                        }
-                      </td>
-                    </tr>
-                  ),
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="divide-y divide-slate-100 lg:hidden">
-            {recentFeedback.map(
-              (item) => (
-                <article
-                  key={item.id}
-                  className="p-5"
-                >
-                  <div className="flex items-start gap-3">
-                    <Avatar
-                      initials={
-                        item.initials
-                      }
-                    />
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          <p className="font-bold text-slate-900">
-                            {
-                              item.customer
-                            }
-                          </p>
-
-                          <p className="mt-0.5 text-xs text-slate-400">
-                            {item.id} ·{" "}
-                            {item.time}
-                          </p>
-                        </div>
-
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-bold ${item.sentimentClass}`}
-                        >
-                          {
-                            item.sentiment
-                          }
-                        </span>
-                      </div>
-
-                      <p className="mt-3 text-sm leading-6 text-slate-600">
-                        {
-                          item.feedback
-                        }
-                      </p>
-
-                      <p className="mt-3 text-xs font-semibold text-slate-400">
-                        Source:{" "}
-                        {
-                          item.source
-                        }
-                      </p>
-                    </div>
-                  </div>
-                </article>
-              ),
-            )}
           </div>
         </section>
 
-        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
-          Dashboard metrics,
-          workspace health and
-          insights currently use
-          frontend demonstration
-          data. Permanent real-time
-          values require backend API
-          integration.
-        </div>
+        {error && (
+          <div className="flex flex-col gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-rose-900/50 dark:bg-rose-950/20">
+            <div>
+              <p className="text-xs font-semibold text-rose-700 dark:text-rose-300">
+                Unable to load dashboard
+              </p>
+
+              <p className="mt-1 text-[11px] text-rose-600 dark:text-rose-400">
+                {error}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={
+                refreshDashboard
+              }
+              className="rounded-lg border border-rose-200 bg-white px-3 py-2 text-[11px] font-semibold text-rose-700 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-300"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            title="Total feedback"
+            value={
+              loading
+                ? "—"
+                : metrics.total.toLocaleString()
+            }
+            helper={`Last ${days} days`}
+            icon={
+              <FeedbackIcon />
+            }
+            tone="blue"
+          />
+
+          <MetricCard
+            title="Classified"
+            value={
+              loading
+                ? "—"
+                : `${metrics.classified}/${metrics.total}`
+            }
+            helper={
+              metrics.pending >
+              0
+                ? `${metrics.pending} pending`
+                : metrics.total >
+                    0
+                  ? "Classification complete"
+                  : "No feedback yet"
+            }
+            icon={
+              <AnalysisIcon />
+            }
+            tone="violet"
+          />
+
+          <MetricCard
+            title="Open workflow"
+            value={
+              loading
+                ? "—"
+                : metrics.open.toLocaleString()
+            }
+            helper={`${metrics.newCount} new · ${metrics.reviewed} reviewed`}
+            icon={
+              <WorkflowIcon />
+            }
+            tone="amber"
+          />
+
+          <MetricCard
+            title="Themes"
+            value={
+              loading
+                ? "—"
+                : metrics.themes.length.toLocaleString()
+            }
+            helper={
+              metrics.themes
+                .length > 0
+                ? "Detected themes"
+                : "No themes detected"
+            }
+            icon={
+              <ThemeIcon />
+            }
+            tone="emerald"
+          />
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-[1.45fr_0.75fr]">
+          <Panel
+            title="Feedback activity"
+            description={`Feedback received during the selected ${days}-day period.`}
+            action={
+              <Link
+                href="/feedback"
+                className="text-[11px] font-semibold text-blue-600 hover:text-blue-500 dark:text-blue-400"
+              >
+                View feedback →
+              </Link>
+            }
+          >
+            {loading ? (
+              <Skeleton className="h-[260px]" />
+            ) : metrics.total ===
+              0 ? (
+              <EmptyState
+                title="No feedback activity"
+                description="Activity will appear after feedback is added to the workspace."
+                href="/feedback"
+                action="Add feedback"
+              />
+            ) : (
+              <div>
+                <div className="mb-5 flex items-end justify-between">
+                  <div>
+                    <p className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-white">
+                      {
+                        metrics.total
+                      }
+                    </p>
+
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      {metrics.total ===
+                      1
+                        ? "feedback received"
+                        : "feedback records received"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="relative h-[210px]">
+                  <div className="absolute inset-x-0 inset-y-0 flex flex-col justify-between">
+                    {[1, 2, 3, 4].map(
+                      (
+                        line,
+                      ) => (
+                        <div
+                          key={
+                            line
+                          }
+                          className="border-t border-dashed border-slate-100 dark:border-slate-800"
+                        />
+                      ),
+                    )}
+                  </div>
+
+                  <div
+                    className={`relative grid h-full items-end gap-3 ${
+                      days === 7
+                        ? "grid-cols-7"
+                        : "grid-cols-6"
+                    }`}
+                  >
+                    {activity.map(
+                      (
+                        item,
+                        index,
+                      ) => {
+                        const height =
+                          item.count ===
+                          0
+                            ? 3
+                            : Math.max(
+                                14,
+                                Math.round(
+                                  (item.count /
+                                    maxActivity) *
+                                    100,
+                                ),
+                              );
+
+                        return (
+                          <div
+                            key={`${item.label}-${index}`}
+                            className="flex h-full flex-col items-center justify-end"
+                          >
+                            <span className="mb-2 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                              {
+                                item.count
+                              }
+                            </span>
+
+                            <div className="flex h-[150px] w-full max-w-12 items-end">
+                              <div
+                                className={`w-full rounded-t-lg ${
+                                  item.count >
+                                  0
+                                    ? "bg-blue-600"
+                                    : "bg-slate-100 dark:bg-slate-800"
+                                }`}
+                                style={{
+                                  height: `${height}%`,
+                                }}
+                              />
+                            </div>
+
+                            <span className="mt-2 text-[10px] text-slate-400">
+                              {
+                                item.label
+                              }
+                            </span>
+                          </div>
+                        );
+                      },
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </Panel>
+
+          <Panel
+            title="Sentiment"
+            description="Sentiment across classified feedback."
+          >
+            {loading ? (
+              <Skeleton className="h-[260px]" />
+            ) : metrics.classified ===
+              0 ? (
+              <div className="flex min-h-[260px] flex-col items-center justify-center text-center">
+                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-400 dark:bg-slate-800">
+                  <AnalysisIcon />
+                </span>
+
+                <p className="mt-4 text-sm font-semibold text-slate-900 dark:text-white">
+                  Awaiting classification
+                </p>
+
+                <p className="mt-2 max-w-xs text-[11px] leading-5 text-slate-500 dark:text-slate-400">
+                  Sentiment insights will appear after feedback receives classification data.
+                </p>
+
+                {metrics.pending >
+                  0 && (
+                  <span className="mt-4 rounded-full bg-amber-50 px-3 py-1.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+                    {
+                      metrics.pending
+                    }{" "}
+                    pending
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-5">
+                <div className="flex justify-center py-2">
+                  <div
+                    className="relative flex h-36 w-36 items-center justify-center rounded-full"
+                    style={{
+                      background: `conic-gradient(
+                        #10b981 0 ${metrics.positiveRate}%,
+                        #f59e0b ${metrics.positiveRate}% ${
+                          metrics.positiveRate +
+                          metrics.neutralRate
+                        }%,
+                        #f43f5e ${
+                          metrics.positiveRate +
+                          metrics.neutralRate
+                        }% 100%
+                      )`,
+                    }}
+                  >
+                    <div className="flex h-[102px] w-[102px] flex-col items-center justify-center rounded-full bg-white dark:bg-slate-900">
+                      <span className="text-2xl font-semibold text-slate-950 dark:text-white">
+                        {
+                          metrics.classified
+                        }
+                      </span>
+
+                      <span className="text-[9px] uppercase tracking-wider text-slate-400">
+                        classified
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <SentimentRow
+                  label="Positive"
+                  value={
+                    metrics.positive
+                  }
+                  percentageValue={
+                    metrics.positiveRate
+                  }
+                  color="bg-emerald-500"
+                />
+
+                <SentimentRow
+                  label="Neutral"
+                  value={
+                    metrics.neutral
+                  }
+                  percentageValue={
+                    metrics.neutralRate
+                  }
+                  color="bg-amber-400"
+                />
+
+                <SentimentRow
+                  label="Negative"
+                  value={
+                    metrics.negative
+                  }
+                  percentageValue={
+                    metrics.negativeRate
+                  }
+                  color="bg-rose-500"
+                />
+              </div>
+            )}
+          </Panel>
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
+          <Panel
+            title="Recent feedback"
+            description="Latest feedback captured in this period."
+            action={
+              <Link
+                href="/feedback"
+                className="text-[11px] font-semibold text-blue-600 hover:text-blue-500 dark:text-blue-400"
+              >
+                View all →
+              </Link>
+            }
+          >
+            {loading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-20" />
+                <Skeleton className="h-20" />
+                <Skeleton className="h-20" />
+              </div>
+            ) : recent.length ===
+              0 ? (
+              <EmptyState
+                title="No feedback yet"
+                description="Recently captured feedback will appear here."
+                href="/feedback"
+                action="Add feedback"
+              />
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                {recent.map(
+                  (
+                    item,
+                  ) => (
+                    <article
+                      key={
+                        item.id
+                      }
+                      className="flex gap-3 py-4 first:pt-0 last:pb-0"
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[10px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                        {getInitials(
+                          item.customerName,
+                        )}
+                      </span>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-semibold text-slate-900 dark:text-white">
+                              {item.customerName ||
+                                "Anonymous Customer"}
+                            </p>
+
+                            <p className="mt-1 text-[10px] text-slate-400">
+                              {item.channel ||
+                                "Unknown source"}{" "}
+                              ·{" "}
+                              {formatDate(
+                                item.createdAt,
+                              )}
+                            </p>
+                          </div>
+
+                          <SentimentBadge
+                            sentiment={
+                              item.sentiment
+                            }
+                          />
+                        </div>
+
+                        <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-600 dark:text-slate-300">
+                          {
+                            item.content
+                          }
+                        </p>
+                      </div>
+                    </article>
+                  ),
+                )}
+              </div>
+            )}
+          </Panel>
+
+          <div className="space-y-5">
+            <Panel
+              title="Workflow"
+              description="Review progress."
+            >
+              <div className="grid grid-cols-3 gap-2">
+                <MiniStat
+                  label="New"
+                  value={
+                    metrics.newCount
+                  }
+                />
+
+                <MiniStat
+                  label="Reviewed"
+                  value={
+                    metrics.reviewed
+                  }
+                />
+
+                <MiniStat
+                  label="Actioned"
+                  value={
+                    metrics.actioned
+                  }
+                />
+              </div>
+            </Panel>
+
+            <Panel
+              title="Top themes"
+              description="Most common linked themes."
+            >
+              {metrics.themes
+                .length === 0 ? (
+                <p className="py-6 text-center text-[11px] leading-5 text-slate-400">
+                  No themes detected yet.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {metrics.themes.map(
+                    (
+                      [
+                        theme,
+                        count,
+                      ],
+                    ) => (
+                      <div
+                        key={
+                          theme
+                        }
+                        className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5 dark:bg-slate-800/60"
+                      >
+                        <span className="truncate text-xs font-medium text-slate-700 dark:text-slate-300">
+                          {
+                            theme
+                          }
+                        </span>
+
+                        <span className="ml-3 text-xs font-semibold text-slate-950 dark:text-white">
+                          {
+                            count
+                          }
+                        </span>
+                      </div>
+                    ),
+                  )}
+                </div>
+              )}
+
+              <Link
+                href="/reports"
+                className="mt-4 flex items-center justify-center rounded-xl border border-slate-200 px-3 py-2.5 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                Open reports
+              </Link>
+            </Panel>
+
+            {metrics.channels
+              .length > 0 && (
+              <Panel
+                title="Sources"
+                description="Feedback channels."
+              >
+                <div className="space-y-3">
+                  {metrics.channels.map(
+                    (
+                      [
+                        channel,
+                        count,
+                      ],
+                    ) => (
+                      <div
+                        key={
+                          channel
+                        }
+                        className="flex items-center justify-between"
+                      >
+                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                          {
+                            channel
+                          }
+                        </span>
+
+                        <span className="text-xs font-semibold text-slate-900 dark:text-white">
+                          {
+                            count
+                          }
+                        </span>
+                      </div>
+                    ),
+                  )}
+                </div>
+              </Panel>
+            )}
+          </div>
+        </section>
       </div>
     </LoopShell>
   );
 }
 
-function SummaryMetricCard({
-  card,
+function Panel({
+  title,
+  description,
+  action,
+  children,
 }: {
-  card: SummaryCard;
+  title: string;
+  description: string;
+  action?: ReactNode;
+  children: ReactNode;
 }) {
-  const toneClasses: Record<
-    MetricTone,
-    {
-      icon: string;
-      change: string;
-      spark: string;
-    }
-  > = {
-    blue: {
-      icon:
-        "bg-blue-100 text-blue-700",
-      change:
-        "text-blue-700",
-      spark: "bg-blue-500",
-    },
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-950/[0.02] dark:border-slate-800 dark:bg-slate-900">
+      <div className="mb-5 flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-950 dark:text-white">
+            {title}
+          </h2>
 
-    emerald: {
-      icon:
-        "bg-emerald-100 text-emerald-700",
-      change:
-        "text-emerald-700",
-      spark:
-        "bg-emerald-500",
-    },
+          <p className="mt-1 text-[11px] leading-5 text-slate-500 dark:text-slate-400">
+            {
+              description
+            }
+          </p>
+        </div>
 
-    rose: {
-      icon:
-        "bg-rose-100 text-rose-700",
-      change:
-        "text-rose-700",
-      spark: "bg-rose-500",
-    },
+        {action}
+      </div>
 
-    violet: {
-      icon:
-        "bg-violet-100 text-violet-700",
-      change:
-        "text-violet-700",
-      spark:
-        "bg-violet-500",
-    },
+      {children}
+    </section>
+  );
+}
+
+function MetricCard({
+  title,
+  value,
+  helper,
+  icon,
+  tone,
+}: {
+  title: string;
+  value: string;
+  helper: string;
+  icon: ReactNode;
+  tone:
+    | "blue"
+    | "violet"
+    | "amber"
+    | "emerald";
+}) {
+  const styles = {
+    blue:
+      "bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300",
+    violet:
+      "bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300",
+    amber:
+      "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300",
+    emerald:
+      "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300",
   };
 
-  const tone =
-    toneClasses[card.tone];
-
   return (
-    <article className="group overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg">
-      <div className="flex items-start justify-between">
+    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-950/[0.02] dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-slate-500">
-            {card.title}
+          <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+            {title}
           </p>
 
-          <p className="mt-3 text-3xl font-black text-slate-950">
-            {card.value}
+          <p className="mt-3 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">
+            {value}
           </p>
         </div>
 
         <span
-          className={`flex h-11 w-11 items-center justify-center rounded-xl ${tone.icon}`}
+          className={`flex h-9 w-9 items-center justify-center rounded-xl ${styles[tone]}`}
         >
-          <Icon
-            name={card.icon}
-          />
+          {icon}
         </span>
       </div>
 
-      <div className="mt-5 flex h-10 items-end gap-1">
-        {card.sparkline.map(
-          (
-            value,
-            index,
-          ) => (
-            <span
-              key={`${card.title}-${index}`}
-              className={`flex-1 rounded-t-sm opacity-25 transition group-hover:opacity-80 ${tone.spark}`}
-              style={{
-                height: `${value}%`,
-              }}
-            />
-          ),
-        )}
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <span
-          className={`text-xs font-bold ${tone.change}`}
-        >
-          {card.change}
-        </span>
-
-        <span className="text-xs text-slate-400">
-          {card.description}
-        </span>
-      </div>
+      <p className="mt-3 text-[10px] text-slate-400">
+        {helper}
+      </p>
     </article>
   );
 }
 
-function WorkspaceHealthCard({
-  health,
-  range,
+function SentimentRow({
+  label,
+  value,
+  percentageValue,
+  color,
 }: {
-  health: (typeof workspaceHealthData)[RangeKey];
-  range: RangeKey;
+  label: string;
+  value: number;
+  percentageValue: number;
+  color: string;
 }) {
-  const circumference =
-    2 * Math.PI * 52;
+  return (
+    <div className="flex items-center gap-3">
+      <span
+        className={`h-2 w-2 rounded-full ${color}`}
+      />
 
-  const progress =
-    (health.score / 100) *
-    circumference;
+      <span className="flex-1 text-[11px] font-medium text-slate-600 dark:text-slate-300">
+        {label}
+      </span>
+
+      <span className="text-[10px] text-slate-400">
+        {value}
+      </span>
+
+      <span className="w-9 text-right text-[11px] font-semibold text-slate-900 dark:text-white">
+        {percentageValue}%
+      </span>
+    </div>
+  );
+}
+
+function SentimentBadge({
+  sentiment,
+}: {
+  sentiment?: Sentiment | null;
+}) {
+  if (!sentiment) {
+    return (
+      <span className="w-fit rounded-full bg-slate-100 px-2 py-1 text-[9px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+        Unclassified
+      </span>
+    );
+  }
+
+  const styles: Record<
+    Sentiment,
+    string
+  > = {
+    POSITIVE:
+      "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300",
+
+    NEUTRAL:
+      "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300",
+
+    NEGATIVE:
+      "bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-300",
+  };
+
+  const labels: Record<
+    Sentiment,
+    string
+  > = {
+    POSITIVE:
+      "Positive",
+    NEUTRAL:
+      "Neutral",
+    NEGATIVE:
+      "Negative",
+  };
 
   return (
-    <article className="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-blue-50/40 to-violet-50/50 p-6 shadow-sm sm:p-7">
-      <div className="absolute -left-16 top-10 h-48 w-48 rounded-full bg-blue-200/30 blur-3xl" />
-
-      <div className="absolute -right-16 bottom-0 h-52 w-52 rounded-full bg-violet-200/30 blur-3xl" />
-
-      <div className="relative">
-        <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-100 text-blue-700">
-                <Icon name="health" />
-              </span>
-
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-700">
-                  Workspace Health
-                </p>
-
-                <h3 className="mt-1 text-xl font-bold text-slate-950">
-                  {health.status}
-                </h3>
-              </div>
-            </div>
-
-            <p className="mt-5 max-w-md text-sm leading-6 text-slate-600">
-              {health.description}
-            </p>
-          </div>
-
-          <div className="relative flex h-36 w-36 shrink-0 items-center justify-center self-center">
-            <svg
-              viewBox="0 0 120 120"
-              className="h-36 w-36 -rotate-90"
-              aria-hidden="true"
-            >
-              <circle
-                cx="60"
-                cy="60"
-                r="52"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="10"
-                className="text-slate-200"
-              />
-
-              <circle
-                cx="60"
-                cy="60"
-                r="52"
-                fill="none"
-                stroke="url(#health-gradient)"
-                strokeWidth="10"
-                strokeLinecap="round"
-                strokeDasharray={
-                  circumference
-                }
-                strokeDashoffset={
-                  circumference -
-                  progress
-                }
-              />
-
-              <defs>
-                <linearGradient
-                  id="health-gradient"
-                  x1="0"
-                  y1="0"
-                  x2="1"
-                  y2="1"
-                >
-                  <stop
-                    offset="0%"
-                    stopColor="#10b981"
-                  />
-
-                  <stop
-                    offset="100%"
-                    stopColor="#2563eb"
-                  />
-                </linearGradient>
-              </defs>
-            </svg>
-
-            <div className="absolute text-center">
-              <p className="text-3xl font-black text-slate-950">
-                {health.score}
-              </p>
-
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                out of 100
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-7 grid gap-3 sm:grid-cols-2">
-          <HealthMetric
-            label="Positive sentiment"
-            value={
-              health.positiveSentiment
-            }
-          />
-
-          <HealthMetric
-            label="Issue resolution"
-            value={
-              health.issueResolution
-            }
-          />
-
-          <HealthMetric
-            label="AI coverage"
-            value={
-              health.aiCoverage
-            }
-          />
-
-          <HealthMetric
-            label="Response health"
-            value={
-              health.responseHealth
-            }
-          />
-        </div>
-
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4 text-xs text-slate-500">
-          <span className="flex items-center gap-2">
-            <Icon name="clock" />
-
-            Updated{" "}
-            {health.lastUpdated}
-          </span>
-
-          <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 font-bold text-blue-700">
-            {range} analysis
-          </span>
-        </div>
-      </div>
-    </article>
+    <span
+      className={`w-fit rounded-full px-2 py-1 text-[9px] font-semibold ${styles[sentiment]}`}
+    >
+      {labels[sentiment]}
+    </span>
   );
 }
 
-function HealthMetric({
+function MiniStat({
   label,
   value,
 }: {
@@ -2199,490 +1551,203 @@ function HealthMetric({
   value: number;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold text-slate-600">
-          {label}
-        </p>
-
-        <p className="text-sm font-black text-slate-900">
-          {value}%
-        </p>
-      </div>
-
-      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
-        <div
-          className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-blue-500"
-          style={{
-            width: `${value}%`,
-          }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function PinnedInsightCard({
-  insight,
-  onRemove,
-}: {
-  insight: Insight;
-  onRemove: () => void;
-}) {
-  return (
-    <article
-      className={`group relative overflow-hidden rounded-2xl border p-5 transition hover:-translate-y-0.5 hover:shadow-md ${getPinnedInsightStyle(
-        insight.tone,
-      )}`}
-    >
-      <div className="flex items-start justify-between gap-4">
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/80 text-slate-700 shadow-sm">
-          <Icon name="spark" />
-        </span>
-
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label={`Remove ${insight.title}`}
-          className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/80 text-slate-500 shadow-sm transition hover:text-rose-600"
-        >
-          ×
-        </button>
-      </div>
-
-      <p className="mt-5 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-        {insight.metricLabel}
-      </p>
-
-      <p className="mt-2 text-2xl font-black text-slate-950">
-        {insight.metric}
-      </p>
-
-      <h4 className="mt-4 text-sm font-bold text-slate-900">
-        {insight.title}
-      </h4>
-
-      <p className="mt-2 text-xs leading-5 text-slate-600">
-        {insight.description}
-      </p>
-
-      <Link
-        href={insight.href}
-        className="mt-5 inline-flex items-center gap-2 text-xs font-bold text-slate-800 transition group-hover:text-blue-700"
-      >
-        View related data
-
-        <Icon name="arrow" />
-      </Link>
-    </article>
-  );
-}
-
-function ComparisonCard({
-  title,
-  value,
-  description,
-}: {
-  title: string;
-  value: string;
-  description: string;
-}) {
-  return (
-    <article className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-bold text-slate-700">
-          {title}
-        </p>
-
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-          ↗
-        </span>
-      </div>
-
-      <p className="mt-5 text-2xl font-black text-slate-950">
+    <div className="rounded-xl bg-slate-50 px-2 py-3 text-center dark:bg-slate-800/60">
+      <p className="text-lg font-semibold text-slate-950 dark:text-white">
         {value}
       </p>
 
-      <p className="mt-1 text-xs text-slate-500">
-        {description}
+      <p className="mt-1 text-[9px] font-medium text-slate-400">
+        {label}
       </p>
-    </article>
+    </div>
   );
 }
 
-function HeroFeature({
-  label,
-}: {
-  label: string;
-}) {
-  return (
-    <span className="flex items-center gap-2">
-      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
-        <Icon name="check" />
-      </span>
-
-      {label}
-    </span>
-  );
-}
-
-function HeroLink({
+function EmptyState({
+  title,
+  description,
   href,
-  title,
-  description,
-  primary = false,
+  action,
 }: {
+  title: string;
+  description: string;
   href: string;
-  title: string;
-  description: string;
-  primary?: boolean;
+  action: string;
 }) {
   return (
-    <Link
-      href={href}
-      className={`group flex items-center justify-between rounded-2xl px-5 py-4 transition hover:-translate-y-0.5 ${
-        primary
-          ? "bg-blue-600 text-white shadow-lg shadow-blue-200"
-          : "border border-slate-200 bg-white text-slate-900 shadow-sm hover:border-blue-200"
-      }`}
-    >
-      <span>
-        <span className="block text-sm font-bold">
-          {title}
-        </span>
-
-        <span
-          className={`mt-1 block text-xs ${
-            primary
-              ? "text-blue-100"
-              : "text-slate-500"
-          }`}
-        >
-          {description}
-        </span>
+    <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-6 text-center dark:border-slate-700 dark:bg-slate-800/20">
+      <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-slate-400 shadow-sm dark:bg-slate-800">
+        <FeedbackIcon />
       </span>
 
-      <span className="transition group-hover:translate-x-1">
-        <Icon name="arrow" />
-      </span>
-    </Link>
-  );
-}
-
-function SectionHeading({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="mb-4">
-      <h3 className="text-lg font-bold text-slate-950">
+      <p className="mt-4 text-sm font-semibold text-slate-900 dark:text-white">
         {title}
-      </h3>
-
-      <p className="mt-1 text-sm text-slate-500">
-        {description}
       </p>
-    </div>
-  );
-}
 
-function Avatar({
-  initials,
-}: {
-  initials: string;
-}) {
-  return (
-    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-violet-600 text-xs font-bold text-white">
-      {initials}
-    </div>
-  );
-}
+      <p className="mt-2 max-w-sm text-[11px] leading-5 text-slate-500 dark:text-slate-400">
+        {
+          description
+        }
+      </p>
 
-function TableHeading({
-  children,
-}: {
-  children: ReactNode;
-}) {
-  return (
-    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">
-      {children}
-    </th>
-  );
-}
-
-function Icon({
-  name,
-}: {
-  name: IconName;
-}) {
-  const commonProps = {
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 1.8,
-    className: "h-5 w-5",
-    "aria-hidden": true,
-  };
-
-  if (name === "positive") {
-    return (
-      <svg {...commonProps}>
-        <circle
-          cx="12"
-          cy="12"
-          r="9"
-        />
-
-        <path
-          strokeLinecap="round"
-          d="M8.5 10h.01M15.5 10h.01M8.5 15c1.8 1.6 5.2 1.6 7 0"
-        />
-      </svg>
-    );
-  }
-
-  if (name === "issue") {
-    return (
-      <svg {...commonProps}>
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M12 3 2.8 19h18.4L12 3Z"
-        />
-
-        <path
-          strokeLinecap="round"
-          d="M12 9v4M12 16h.01"
-        />
-      </svg>
-    );
-  }
-
-  if (
-    name === "ai" ||
-    name === "spark"
-  ) {
-    return (
-      <svg {...commonProps}>
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="m12 3 1.8 4.8L19 10l-5.2 2.2L12 17l-1.8-4.8L5 10l5.2-2.2L12 3Z"
-        />
-
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="m19 16 .8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16Z"
-        />
-      </svg>
-    );
-  }
-
-  if (
-    name === "message" ||
-    name === "feedback"
-  ) {
-    return (
-      <svg {...commonProps}>
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M5 19.5 3.5 21v-5A8.5 8.5 0 1 1 7 19"
-        />
-
-        <path
-          strokeLinecap="round"
-          d="M8 10h8M8 14h5"
-        />
-      </svg>
-    );
-  }
-
-  if (name === "report") {
-    return (
-      <svg {...commonProps}>
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M5 3h10l4 4v14H5V3Z"
-        />
-
-        <path
-          strokeLinecap="round"
-          d="M9 17v-4M13 17V9M17 17v-6"
-        />
-      </svg>
-    );
-  }
-
-  if (name === "health") {
-    return (
-      <svg {...commonProps}>
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6l-7-3Z"
-        />
-
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M8 12h2l1-2 2 5 1-3h2"
-        />
-      </svg>
-    );
-  }
-
-  if (name === "clock") {
-    return (
-      <svg {...commonProps}>
-        <circle
-          cx="12"
-          cy="12"
-          r="9"
-        />
-
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M12 7v5l3 2"
-        />
-      </svg>
-    );
-  }
-
-  if (name === "pin") {
-    return (
-      <svg {...commonProps}>
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="m8 3 8 8M14 3l7 7-4 1-4 4-1 4-7-7 4-1 4-4 1-4ZM8 16l-5 5"
-        />
-      </svg>
-    );
-  }
-
-  if (name === "plus") {
-    return (
-      <svg {...commonProps}>
-        <path
-          strokeLinecap="round"
-          d="M12 5v14M5 12h14"
-        />
-      </svg>
-    );
-  }
-
-  if (name === "refresh") {
-    return (
-      <svg {...commonProps}>
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M20 7v5h-5M4 17v-5h5M6.1 9a7 7 0 0 1 11.7-2L20 9M4 15l2.2 2a7 7 0 0 0 11.7-2"
-        />
-      </svg>
-    );
-  }
-
-  if (name === "download") {
-    return (
-      <svg {...commonProps}>
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M12 3v12M7 10l5 5 5-5M5 21h14"
-        />
-      </svg>
-    );
-  }
-
-  if (name === "arrow") {
-    return (
-      <svg {...commonProps}>
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M5 12h14M14 7l5 5-5 5"
-        />
-      </svg>
-    );
-  }
-
-  if (name === "check") {
-    return (
-      <svg
-        {...commonProps}
-        className="h-3.5 w-3.5"
-        strokeWidth={2}
+      <Link
+        href={href}
+        className="mt-4 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
       >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="m5 12 4 4L19 6"
-        />
-      </svg>
-    );
-  }
-
-  return null;
+        {action}
+      </Link>
+    </div>
+  );
 }
 
-function getPinnedInsightStyle(
-  tone: InsightTone,
-) {
-  if (tone === "emerald") {
-    return "border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50";
-  }
-
-  if (tone === "rose") {
-    return "border-rose-200 bg-gradient-to-br from-rose-50 to-orange-50";
-  }
-
-  if (tone === "amber") {
-    return "border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50";
-  }
-
-  return "border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50";
+function Skeleton({
+  className,
+}: {
+  className: string;
+}) {
+  return (
+    <div
+      className={`animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800 ${className}`}
+    />
+  );
 }
 
-function getInsightBackground(
-  tone: InsightTone,
-) {
-  if (tone === "emerald") {
-    return "bg-gradient-to-br from-emerald-50 to-teal-50";
-  }
-
-  if (tone === "rose") {
-    return "bg-gradient-to-br from-rose-50 to-orange-50";
-  }
-
-  if (tone === "amber") {
-    return "bg-gradient-to-br from-amber-50 to-yellow-50";
-  }
-
-  return "bg-gradient-to-br from-blue-50 to-indigo-50";
+function RefreshIcon({
+  spinning,
+}: {
+  spinning: boolean;
+}) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className={`h-3.5 w-3.5 ${
+        spinning
+          ? "animate-spin"
+          : ""
+      }`}
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        d="M20 11a8 8 0 0 0-14.9-4M4 5v5h5M4 13a8 8 0 0 0 14.9 4M20 19v-5h-5"
+      />
+    </svg>
+  );
 }
 
-function getInsightBadge(
-  tone: InsightTone,
-) {
-  if (tone === "emerald") {
-    return "bg-emerald-100 text-emerald-700";
-  }
+function PlusIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className="h-3.5 w-3.5"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        d="M12 5v14M5 12h14"
+      />
+    </svg>
+  );
+}
 
-  if (tone === "rose") {
-    return "bg-rose-100 text-rose-700";
-  }
+function FeedbackIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M5 5h14v10H9l-4 4V5Z"
+      />
 
-  if (tone === "amber") {
-    return "bg-amber-100 text-amber-700";
-  }
+      <path
+        strokeLinecap="round"
+        d="M8 9h8M8 12h5"
+      />
+    </svg>
+  );
+}
 
-  return "bg-blue-100 text-blue-700";
+function AnalysisIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 18l-1.8-6.2L5 10l5.2-1.8L12 3Z"
+      />
+    </svg>
+  );
+}
+
+function WorkflowIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <rect
+        x="4"
+        y="4"
+        width="6"
+        height="6"
+        rx="1.5"
+      />
+
+      <rect
+        x="14"
+        y="14"
+        width="6"
+        height="6"
+        rx="1.5"
+      />
+
+      <path
+        strokeLinecap="round"
+        d="M10 7h3a4 4 0 0 1 4 4v3"
+      />
+    </svg>
+  );
+}
+
+function ThemeIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="m12 4 8 4-8 4-8-4 8-4ZM4 13l8 4 8-4M4 18l8 4 8-4"
+      />
+    </svg>
+  );
 }

@@ -1,8 +1,8 @@
 "use client";
 
 import Papa from "papaparse";
+
 import {
-  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -54,7 +54,10 @@ type CsvRow = {
 };
 
 type AlertMessage = {
-  type: "success" | "error" | "info";
+  type:
+    | "success"
+    | "error"
+    | "info";
   message: string;
 };
 
@@ -94,17 +97,37 @@ type FeedbackMutationResponse = {
   };
 };
 
+const pageLimit = 15;
+
+const maximumCsvSize =
+  5 * 1024 * 1024;
+
+const channelOptions = [
+  "Web Form",
+  "App Review",
+  "Support Ticket",
+  "Survey",
+  "Social Media",
+  "Email",
+  "CSV Import",
+];
+
 async function readJsonSafely<T>(
   response: Response,
 ): Promise<T | null> {
-  const responseText = await response.text();
+  const responseText =
+    await response.text();
 
-  if (!responseText.trim()) {
+  if (
+    !responseText.trim()
+  ) {
     return null;
   }
 
   try {
-    return JSON.parse(responseText) as T;
+    return JSON.parse(
+      responseText,
+    ) as T;
   } catch {
     return null;
   }
@@ -117,9 +140,10 @@ function getFeedbackServiceError(
   if (status === 401) {
     return {
       kind: "unauthorized",
-      title: "Feedback workspace is not connected",
+      title:
+        "Feedback workspace is not connected",
       message:
-        "The frontend is ready, but the current login session does not contain a valid workspace context. Backend authentication setup is required to load live feedback.",
+        "The current session does not contain valid workspace access for this feedback request.",
       technicalMessage,
     };
   }
@@ -127,9 +151,10 @@ function getFeedbackServiceError(
   if (status === 403) {
     return {
       kind: "forbidden",
-      title: "Workspace access unavailable",
+      title:
+        "Workspace access unavailable",
       message:
-        "This account does not currently have permission to view feedback for the selected workspace.",
+        "This account does not currently have permission to view feedback for this workspace.",
       technicalMessage,
     };
   }
@@ -137,19 +162,24 @@ function getFeedbackServiceError(
   if (status === 404) {
     return {
       kind: "not-found",
-      title: "Feedback service not found",
+      title:
+        "Feedback service unavailable",
       message:
-        "The feedback API route is currently unavailable. The remaining frontend features can still be reviewed.",
+        "The feedback API route could not be found.",
       technicalMessage,
     };
   }
 
-  if (status && status >= 500) {
+  if (
+    status &&
+    status >= 500
+  ) {
     return {
       kind: "server",
-      title: "Feedback service temporarily unavailable",
+      title:
+        "Feedback service temporarily unavailable",
       message:
-        "The server could not load feedback at this time. Please retry after the backend service becomes available.",
+        "The server could not load feedback at this time. Please try again.",
       technicalMessage,
     };
   }
@@ -157,18 +187,20 @@ function getFeedbackServiceError(
   if (!status) {
     return {
       kind: "network",
-      title: "Unable to connect to feedback service",
+      title:
+        "Unable to connect to feedback service",
       message:
-        "The application could not reach the feedback API. Check the development server and try again.",
+        "LOOP could not reach the feedback API. Check the application connection and try again.",
       technicalMessage,
     };
   }
 
   return {
     kind: "unknown",
-    title: "Unable to load feedback",
+    title:
+      "Unable to load feedback",
     message:
-      "Feedback data is currently unavailable. Please try again later.",
+      "Feedback data is currently unavailable. Please try again.",
     technicalMessage,
   };
 }
@@ -178,15 +210,15 @@ function getFeedbackActionError(
   fallbackMessage?: string,
 ) {
   if (status === 401) {
-    return "This action is unavailable because the current workspace session is not connected. Backend authentication support is required.";
+    return "This action is unavailable because the current workspace session is not connected.";
   }
 
   if (status === 403) {
-    return "You do not currently have permission to perform this action.";
+    return "You do not have permission to perform this action.";
   }
 
   if (status >= 500) {
-    return "The feedback service is temporarily unavailable. Please try again later.";
+    return "The feedback service is temporarily unavailable. Please try again.";
   }
 
   return (
@@ -195,226 +227,427 @@ function getFeedbackActionError(
   );
 }
 
-const pageLimit = 15;
-const maximumCsvSize = 5 * 1024 * 1024;
-
-const channelOptions = [
-  "Web Form",
-  "App Review",
-  "Support Ticket",
-  "Survey",
-  "Social Media",
-  "Email",
-  "CSV Import",
-];
-
 function getSentimentStyle(
-  sentiment?: string | null,
+  sentiment?: Sentiment | null,
 ) {
-  if (sentiment === "POSITIVE") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (
+    sentiment === "POSITIVE"
+  ) {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300";
   }
 
-  if (sentiment === "NEGATIVE") {
-    return "border-rose-200 bg-rose-50 text-rose-700";
+  if (
+    sentiment === "NEGATIVE"
+  ) {
+    return "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300";
   }
 
-  return "border-amber-200 bg-amber-50 text-amber-700";
+  if (
+    sentiment === "NEUTRAL"
+  ) {
+    return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300";
+  }
+
+  return "border-slate-200 bg-slate-100 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400";
 }
 
-function getStatusStyle(status: FeedbackStatus) {
-  if (status === "ACTIONED") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+function getStatusStyle(
+  status: FeedbackStatus,
+) {
+  if (
+    status === "ACTIONED"
+  ) {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300";
   }
 
-  if (status === "REVIEWED") {
-    return "border-blue-200 bg-blue-50 text-blue-700";
+  if (
+    status === "REVIEWED"
+  ) {
+    return "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-300";
   }
 
-  return "border-violet-200 bg-violet-50 text-violet-700";
+  return "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900/50 dark:bg-violet-950/30 dark:text-violet-300";
 }
 
-function formatLabel(value?: string | null) {
+function formatSentiment(
+  value?: Sentiment | null,
+) {
   if (!value) {
-    return "Neutral";
+    return "Unclassified";
   }
 
+  return formatLabel(
+    value,
+  );
+}
+
+function formatLabel(
+  value: string,
+) {
   return value
     .toLowerCase()
-    .replace(/(^|\s)\S/g, (letter) =>
-      letter.toUpperCase(),
+    .replace(
+      /(^|\s)\S/g,
+      (letter) =>
+        letter.toUpperCase(),
     );
 }
 
-function getInitials(name?: string | null) {
+function getInitials(
+  name?: string | null,
+) {
   const customerName =
-    name?.trim() || "Anonymous Customer";
+    name?.trim() ||
+    "Anonymous Customer";
 
-  return customerName
-    .split(" ")
-    .filter(Boolean)
-    .map((word) => word.charAt(0))
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  return (
+    customerName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((word) =>
+        word
+          .charAt(0)
+          .toUpperCase(),
+      )
+      .join("") || "AC"
+  );
 }
 
-function formatDate(dateValue: string) {
-  const date = new Date(dateValue);
+function formatDate(
+  dateValue: string,
+) {
+  const date =
+    new Date(dateValue);
 
-  if (Number.isNaN(date.getTime())) {
+  if (
+    Number.isNaN(
+      date.getTime(),
+    )
+  ) {
     return "Unknown date";
   }
 
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(date);
+  return new Intl.DateTimeFormat(
+    "en-IN",
+    {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    },
+  ).format(date);
 }
 
-function formatTime(dateValue: string) {
-  const date = new Date(dateValue);
+function formatTime(
+  dateValue: string,
+) {
+  const date =
+    new Date(dateValue);
 
-  if (Number.isNaN(date.getTime())) {
+  if (
+    Number.isNaN(
+      date.getTime(),
+    )
+  ) {
     return "";
   }
 
-  return new Intl.DateTimeFormat("en-IN", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
+  return new Intl.DateTimeFormat(
+    "en-IN",
+    {
+      hour: "2-digit",
+      minute: "2-digit",
+    },
+  ).format(date);
 }
 
 export default function FeedbackPage() {
   const csvInputRef =
-    useRef<HTMLInputElement>(null);
-
-  const [feedbackList, setFeedbackList] =
-    useState<FeedbackItem[]>([]);
-
-  const [loading, setLoading] = useState(true);
-
-  const [refreshing, setRefreshing] =
-    useState(false);
-
-  const [fetchError, setFetchError] =
-    useState<FeedbackServiceError | null>(
+    useRef<HTMLInputElement>(
       null,
     );
 
-  const [search, setSearch] = useState("");
+  const [
+    feedbackList,
+    setFeedbackList,
+  ] =
+    useState<
+      FeedbackItem[]
+    >([]);
 
-  const [debouncedSearch, setDebouncedSearch] =
-    useState("");
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(true);
+
+  const [
+    refreshing,
+    setRefreshing,
+  ] =
+    useState(false);
+
+  const [
+    fetchError,
+    setFetchError,
+  ] =
+    useState<
+      FeedbackServiceError | null
+    >(null);
+
+  const [
+    search,
+    setSearch,
+  ] = useState("");
+
+  const [
+    debouncedSearch,
+    setDebouncedSearch,
+  ] = useState("");
 
   const [
     sentimentFilter,
     setSentimentFilter,
   ] = useState("All");
 
-  const [channelFilter, setChannelFilter] =
-    useState("All");
+  const [
+    channelFilter,
+    setChannelFilter,
+  ] = useState("All");
 
-  const [statusFilter, setStatusFilter] =
-    useState("All");
+  const [
+    statusFilter,
+    setStatusFilter,
+  ] = useState("All");
 
-  const [showForm, setShowForm] =
+  const [
+    showForm,
+    setShowForm,
+  ] =
     useState(false);
 
-  const [showCsvModal, setShowCsvModal] =
+  const [
+    showCsvModal,
+    setShowCsvModal,
+  ] =
     useState(false);
 
   const [
     selectedFeedback,
     setSelectedFeedback,
-  ] = useState<FeedbackItem | null>(null);
+  ] =
+    useState<
+      FeedbackItem | null
+    >(null);
 
-  const [page, setPage] = useState(1);
+  const [
+    page,
+    setPage,
+  ] = useState(1);
 
-  const [totalPages, setTotalPages] =
+  const [
+    totalPages,
+    setTotalPages,
+  ] =
     useState(1);
 
-  const [totalCount, setTotalCount] =
+  const [
+    totalCount,
+    setTotalCount,
+  ] =
     useState(0);
 
-  const [customerName, setCustomerName] =
+  const [
+    customerName,
+    setCustomerName,
+  ] =
     useState("");
 
-  const [content, setContent] = useState("");
+  const [
+    content,
+    setContent,
+  ] = useState("");
 
-  const [channel, setChannel] =
+  const [
+    channel,
+    setChannel,
+  ] =
     useState("Web Form");
 
-  const [formError, setFormError] =
+  const [
+    formError,
+    setFormError,
+  ] =
     useState("");
 
-  const [submitting, setSubmitting] =
+  const [
+    submitting,
+    setSubmitting,
+  ] =
     useState(false);
 
-  const [csvUploading, setCsvUploading] =
+  const [
+    csvUploading,
+    setCsvUploading,
+  ] =
     useState(false);
 
-  const [csvFileName, setCsvFileName] =
+  const [
+    csvFileName,
+    setCsvFileName,
+  ] =
     useState("");
 
-  const [alertMessage, setAlertMessage] =
-    useState<AlertMessage | null>(null);
+  const [
+    alertMessage,
+    setAlertMessage,
+  ] =
+    useState<
+      AlertMessage | null
+    >(null);
 
-  const fetchFeedback = useCallback(
-    async (showRefreshState = false) => {
-      if (showRefreshState) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
+  const [
+    requestVersion,
+    setRequestVersion,
+  ] =
+    useState(0);
+
+  const queryString =
+    useMemo(() => {
+      const params =
+        new URLSearchParams();
+
+      params.set(
+        "page",
+        page.toString(),
+      );
+
+      params.set(
+        "limit",
+        pageLimit.toString(),
+      );
+
+      if (
+        debouncedSearch.trim()
+      ) {
+        params.set(
+          "search",
+          debouncedSearch.trim(),
+        );
       }
 
-      setFetchError(null);
-
-      try {
-        const params = new URLSearchParams();
-
-        params.set("page", page.toString());
-        params.set("limit", pageLimit.toString());
-
-        if (debouncedSearch.trim()) {
-          params.set(
-            "search",
-            debouncedSearch.trim(),
-          );
-        }
-
-        if (sentimentFilter !== "All") {
-          params.set(
-            "sentiment",
-            sentimentFilter,
-          );
-        }
-
-        if (channelFilter !== "All") {
-          params.set("channel", channelFilter);
-        }
-
-        if (statusFilter !== "All") {
-          params.set("status", statusFilter);
-        }
-
-        const response = await fetch(
-          `/api/feedback?${params.toString()}`,
-          {
-            cache: "no-store",
-          },
+      if (
+        sentimentFilter !==
+        "All"
+      ) {
+        params.set(
+          "sentiment",
+          sentimentFilter,
         );
+      }
+
+      if (
+        channelFilter !==
+        "All"
+      ) {
+        params.set(
+          "channel",
+          channelFilter,
+        );
+      }
+
+      if (
+        statusFilter !==
+        "All"
+      ) {
+        params.set(
+          "status",
+          statusFilter,
+        );
+      }
+
+      return params.toString();
+    }, [
+      page,
+      debouncedSearch,
+      sentimentFilter,
+      channelFilter,
+      statusFilter,
+    ]);
+
+  useEffect(() => {
+    const timer =
+      window.setTimeout(
+        () => {
+          setLoading(true);
+
+          setFetchError(
+            null,
+          );
+
+          setPage(1);
+
+          setDebouncedSearch(
+            search,
+          );
+
+          setRequestVersion(
+            (value) =>
+              value + 1,
+          );
+        },
+        450,
+      );
+
+    return () => {
+      window.clearTimeout(
+        timer,
+      );
+    };
+  }, [search]);
+
+  useEffect(() => {
+    const controller =
+      new AbortController();
+
+    let active = true;
+
+    async function loadFeedback() {
+      try {
+        const response =
+          await fetch(
+            `/api/feedback?${queryString}`,
+            {
+              cache:
+                "no-store",
+              signal:
+                controller.signal,
+            },
+          );
 
         const result =
           await readJsonSafely<FeedbackListResponse>(
             response,
           );
 
-        if (!response.ok) {
-          setFeedbackList([]);
-          setTotalPages(1);
-          setTotalCount(0);
+        if (!active) {
+          return;
+        }
+
+        if (
+          !response.ok
+        ) {
+          setFeedbackList(
+            [],
+          );
+
+          setTotalPages(
+            1,
+          );
+
+          setTotalCount(
+            0,
+          );
 
           setFetchError(
             getFeedbackServiceError(
@@ -426,127 +659,348 @@ export default function FeedbackPage() {
           return;
         }
 
-        setFeedbackList(result?.data || []);
+        setFeedbackList(
+          result?.data ??
+            [],
+        );
 
         setTotalPages(
           Math.max(
-            result?.meta?.totalPages || 1,
+            result?.meta
+              ?.totalPages ??
+              1,
             1,
           ),
         );
 
-        setTotalCount(result?.meta?.total || 0);
+        setTotalCount(
+          result?.meta
+            ?.total ?? 0,
+        );
+
+        setFetchError(
+          null,
+        );
       } catch (error) {
-        setFeedbackList([]);
-        setTotalPages(1);
-        setTotalCount(0);
+        if (
+          controller.signal
+            .aborted ||
+          !active
+        ) {
+          return;
+        }
+
+        setFeedbackList(
+          [],
+        );
+
+        setTotalPages(
+          1,
+        );
+
+        setTotalCount(
+          0,
+        );
 
         setFetchError(
           getFeedbackServiceError(
             undefined,
-            error instanceof Error
+            error instanceof
+              Error
               ? error.message
               : undefined,
           ),
         );
       } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    [
-      page,
-      debouncedSearch,
-      sentimentFilter,
-      channelFilter,
-      statusFilter,
-    ],
-  );
+        if (active) {
+          setLoading(
+            false,
+          );
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebouncedSearch(search);
-    }, 450);
+          setRefreshing(
+            false,
+          );
+        }
+      }
+    }
+
+    void loadFeedback();
 
     return () => {
-      window.clearTimeout(timer);
-    };
-  }, [search]);
+      active = false;
 
-  useEffect(() => {
-    setPage(1);
+      controller.abort();
+    };
   }, [
-    debouncedSearch,
-    sentimentFilter,
-    channelFilter,
-    statusFilter,
+    queryString,
+    requestVersion,
   ]);
 
   useEffect(() => {
-    void fetchFeedback();
-  }, [fetchFeedback]);
-
-  useEffect(() => {
-    if (!alertMessage) {
+    if (
+      !alertMessage
+    ) {
       return;
     }
 
-    const timer = window.setTimeout(() => {
-      setAlertMessage(null);
-    }, 3500);
+    const timer =
+      window.setTimeout(
+        () => {
+          setAlertMessage(
+            null,
+          );
+        },
+        3500,
+      );
 
     return () => {
-      window.clearTimeout(timer);
+      window.clearTimeout(
+        timer,
+      );
     };
   }, [alertMessage]);
 
-  const currentPageStats = useMemo(() => {
-    const positive = feedbackList.filter(
-      (item) =>
-        item.sentiment === "POSITIVE",
-    ).length;
+  const currentPageStats =
+    useMemo(() => {
+      const positive =
+        feedbackList.filter(
+          (item) =>
+            item.sentiment ===
+            "POSITIVE",
+        ).length;
 
-    const negative = feedbackList.filter(
-      (item) =>
-        item.sentiment === "NEGATIVE",
-    ).length;
+      const negative =
+        feedbackList.filter(
+          (item) =>
+            item.sentiment ===
+            "NEGATIVE",
+        ).length;
 
-    const newItems = feedbackList.filter(
-      (item) => item.status === "NEW",
-    ).length;
+      const newItems =
+        feedbackList.filter(
+          (item) =>
+            item.status ===
+            "NEW",
+        ).length;
 
-    return {
-      positive,
-      negative,
-      newItems,
-    };
-  }, [feedbackList]);
+      const unclassified =
+        feedbackList.filter(
+          (item) =>
+            !item.sentiment,
+        ).length;
+
+      return {
+        positive,
+        negative,
+        newItems,
+        unclassified,
+      };
+    }, [feedbackList]);
 
   const hasActiveFilters =
-    search.trim().length > 0 ||
-    sentimentFilter !== "All" ||
-    channelFilter !== "All" ||
-    statusFilter !== "All";
+    search
+      .trim()
+      .length > 0 ||
+    sentimentFilter !==
+      "All" ||
+    channelFilter !==
+      "All" ||
+    statusFilter !==
+      "All";
+
+  function beginRequest(
+    type:
+      | "loading"
+      | "refreshing" =
+      "loading",
+  ) {
+    setFetchError(null);
+
+    if (
+      type ===
+      "refreshing"
+    ) {
+      setRefreshing(
+        true,
+      );
+    } else {
+      setLoading(true);
+    }
+
+    setRequestVersion(
+      (value) =>
+        value + 1,
+    );
+  }
 
   function resetFeedbackForm() {
     setCustomerName("");
     setContent("");
-    setChannel("Web Form");
+    setChannel(
+      "Web Form",
+    );
     setFormError("");
   }
 
   function closeFeedbackForm() {
     resetFeedbackForm();
-    setShowForm(false);
+
+    setShowForm(
+      false,
+    );
+  }
+
+  function changeSentimentFilter(
+    value: string,
+  ) {
+    setLoading(true);
+    setFetchError(null);
+    setPage(1);
+
+    setSentimentFilter(
+      value,
+    );
+
+    setRequestVersion(
+      (current) =>
+        current + 1,
+    );
+  }
+
+  function changeChannelFilter(
+    value: string,
+  ) {
+    setLoading(true);
+    setFetchError(null);
+    setPage(1);
+
+    setChannelFilter(
+      value,
+    );
+
+    setRequestVersion(
+      (current) =>
+        current + 1,
+    );
+  }
+
+  function changeStatusFilter(
+    value: string,
+  ) {
+    setLoading(true);
+    setFetchError(null);
+    setPage(1);
+
+    setStatusFilter(
+      value,
+    );
+
+    setRequestVersion(
+      (current) =>
+        current + 1,
+    );
   }
 
   function resetFilters() {
+    setLoading(true);
+
+    setFetchError(
+      null,
+    );
+
     setSearch("");
-    setDebouncedSearch("");
-    setSentimentFilter("All");
-    setChannelFilter("All");
-    setStatusFilter("All");
+
+    setDebouncedSearch(
+      "",
+    );
+
+    setSentimentFilter(
+      "All",
+    );
+
+    setChannelFilter(
+      "All",
+    );
+
+    setStatusFilter(
+      "All",
+    );
+
     setPage(1);
+
+    setRequestVersion(
+      (current) =>
+        current + 1,
+    );
+  }
+
+  function goToPreviousPage() {
+    if (
+      page <= 1 ||
+      loading
+    ) {
+      return;
+    }
+
+    setLoading(true);
+
+    setFetchError(
+      null,
+    );
+
+    setPage(
+      (previous) =>
+        Math.max(
+          previous - 1,
+          1,
+        ),
+    );
+
+    setRequestVersion(
+      (current) =>
+        current + 1,
+    );
+  }
+
+  function goToNextPage() {
+    if (
+      page >=
+        totalPages ||
+      loading
+    ) {
+      return;
+    }
+
+    setLoading(true);
+
+    setFetchError(
+      null,
+    );
+
+    setPage(
+      (previous) =>
+        Math.min(
+          previous + 1,
+          totalPages,
+        ),
+    );
+
+    setRequestVersion(
+      (current) =>
+        current + 1,
+    );
+  }
+
+  function refreshFeedback() {
+    beginRequest(
+      "refreshing",
+    );
+  }
+
+  function retryFeedback() {
+    beginRequest(
+      "loading",
+    );
   }
 
   async function handleSubmit(
@@ -556,52 +1010,73 @@ export default function FeedbackPage() {
 
     setFormError("");
 
-    if (!content.trim()) {
+    if (
+      !content.trim()
+    ) {
       setFormError(
         "Please enter customer feedback text.",
       );
+
       return;
     }
 
-    if (content.trim().length < 5) {
+    if (
+      content
+        .trim()
+        .length < 5
+    ) {
       setFormError(
         "Feedback must contain at least 5 characters.",
       );
+
       return;
     }
 
     setSubmitting(true);
 
     try {
-      const response = await fetch(
-        "/api/feedback",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
+      const response =
+        await fetch(
+          "/api/feedback",
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body:
+              JSON.stringify(
+                {
+                  customerName:
+                    customerName.trim() ||
+                    "Anonymous Customer",
+
+                  content:
+                    content.trim(),
+
+                  channel,
+                },
+              ),
           },
-          body: JSON.stringify({
-            customerName:
-              customerName.trim() ||
-              "Anonymous Customer",
-            content: content.trim(),
-            channel,
-          }),
-        },
-      );
+        );
 
       const data =
         await readJsonSafely<FeedbackMutationResponse>(
           response,
         );
 
-      if (!response.ok) {
+      if (
+        !response.ok
+      ) {
         setFormError(
           getFeedbackActionError(
             response.status,
             data?.error,
           ),
         );
+
         return;
       }
 
@@ -610,481 +1085,559 @@ export default function FeedbackPage() {
       // Report what actually happened rather than assuming the AI ran. An item
       // that failed to embed won't be findable by Ask LOOP, and the user
       // should know that at the moment it happens.
-      const classification = data?.classification;
+      const classification =
+        data?.classification;
 
       setAlertMessage({
-        type: classification?.embedded
-          ? "success"
-          : "info",
-        message: !classification?.ok
-          ? "Feedback saved, but AI classification failed. It will not appear in Ask LOOP until it is reclassified."
-          : classification.embedded
-            ? "Feedback saved and classified."
-            : "Feedback saved and classified, but the search index could not be updated. It will not appear in Ask LOOP until it is reclassified.",
+        type:
+          classification?.embedded
+            ? "success"
+            : "info",
+
+        message:
+          !classification?.ok
+            ? "Feedback saved, but AI classification failed. It will not appear in Ask LOOP until it is reclassified."
+            : classification.embedded
+              ? "Feedback saved and classified."
+              : "Feedback saved and classified, but the search index could not be updated. It will not appear in Ask LOOP until it is reclassified.",
       });
 
-      if (page === 1) {
-        await fetchFeedback(true);
-      } else {
-        setPage(1);
-      }
+      setLoading(true);
+
+      setPage(1);
+
+      setRequestVersion(
+        (current) =>
+          current + 1,
+      );
     } catch {
       setFormError(
-        "The feedback service could not be reached. Please try again after the backend connection is available.",
+        "The feedback service could not be reached. Please try again.",
       );
     } finally {
-      setSubmitting(false);
+      setSubmitting(
+        false,
+      );
     }
   }
 
   function handleCsvFileUpload(
     event: ChangeEvent<HTMLInputElement>,
   ) {
-    const file = event.target.files?.[0];
+    const file =
+      event.target
+        .files?.[0];
 
     if (!file) {
       return;
     }
 
-    setAlertMessage(null);
-    setCsvFileName(file.name);
+    setAlertMessage(
+      null,
+    );
+
+    setCsvFileName(
+      file.name,
+    );
 
     const isCsv =
-      file.type === "text/csv" ||
-      file.name.toLowerCase().endsWith(".csv");
+      file.type ===
+        "text/csv" ||
+      file.name
+        .toLowerCase()
+        .endsWith(".csv");
 
     if (!isCsv) {
-      setAlertMessage({
-        type: "error",
-        message:
-          "Please select a valid CSV file.",
-      });
+      setAlertMessage(
+        {
+          type: "error",
 
-      event.target.value = "";
-      setCsvFileName("");
+          message:
+            "Please select a valid CSV file.",
+        },
+      );
+
+      event.target.value =
+        "";
+
+      setCsvFileName(
+        "",
+      );
+
       return;
     }
 
-    if (file.size > maximumCsvSize) {
-      setAlertMessage({
-        type: "error",
-        message:
-          "CSV file must be smaller than 5 MB.",
-      });
+    if (
+      file.size >
+      maximumCsvSize
+    ) {
+      setAlertMessage(
+        {
+          type: "error",
 
-      event.target.value = "";
-      setCsvFileName("");
+          message:
+            "CSV file must be smaller than 5 MB.",
+        },
+      );
+
+      event.target.value =
+        "";
+
+      setCsvFileName(
+        "",
+      );
+
       return;
     }
 
-    setCsvUploading(true);
+    setCsvUploading(
+      true,
+    );
 
-    Papa.parse<CsvRow>(file, {
-      header: true,
-      skipEmptyLines: true,
-      transformHeader: (header) =>
-        header.trim(),
+    Papa.parse<CsvRow>(
+      file,
+      {
+        header: true,
 
-      complete: async (results) => {
-        try {
-          const parsedItems = results.data
-            .map((row) => {
-              const feedbackContent =
-                row.content ||
-                row.feedback ||
-                row.message ||
-                row.Message ||
-                row.MessageText ||
-                "";
+        skipEmptyLines:
+          true,
 
-              return {
-                content:
-                  feedbackContent.trim(),
-                channel:
-                  row.channel?.trim() ||
-                  row.source?.trim() ||
-                  "CSV Import",
-                customerName:
-                  row.customer?.trim() ||
-                  row.customerName?.trim() ||
-                  row.name?.trim() ||
-                  "CSV Customer",
-              };
-            })
-            .filter(
-              (item) =>
-                item.content.length > 0,
-            );
+        transformHeader:
+          (header) =>
+            header.trim(),
 
-          if (parsedItems.length === 0) {
-            setAlertMessage({
-              type: "error",
-              message:
-                "No valid feedback found. Expected content, customer and channel columns.",
-            });
-            return;
-          }
+        complete:
+          async (
+            results,
+          ) => {
+            try {
+              const parsedItems =
+                results.data
+                  .map(
+                    (
+                      row,
+                    ) => {
+                      const feedbackContent =
+                        row.content ||
+                        row.feedback ||
+                        row.message ||
+                        row.Message ||
+                        row.MessageText ||
+                        "";
 
-          const response = await fetch(
-            "/api/feedback/bulk",
+                      return {
+                        content:
+                          feedbackContent.trim(),
+
+                        channel:
+                          row.channel?.trim() ||
+                          row.source?.trim() ||
+                          "CSV Import",
+
+                        customerName:
+                          row.customer?.trim() ||
+                          row.customerName?.trim() ||
+                          row.name?.trim() ||
+                          "CSV Customer",
+                      };
+                    },
+                  )
+                  .filter(
+                    (
+                      item,
+                    ) =>
+                      item
+                        .content
+                        .length >
+                      0,
+                  );
+
+              if (
+                parsedItems.length ===
+                0
+              ) {
+                setAlertMessage(
+                  {
+                    type: "error",
+
+                    message:
+                      "No valid feedback was found. Include a content or feedback column.",
+                  },
+                );
+
+                return;
+              }
+
+              const response =
+                await fetch(
+                  "/api/feedback/bulk",
+                  {
+                    method:
+                      "POST",
+
+                    headers:
+                      {
+                        "Content-Type":
+                          "application/json",
+                      },
+
+                    body:
+                      JSON.stringify(
+                        {
+                          items:
+                            parsedItems,
+                        },
+                      ),
+                  },
+                );
+
+              const data =
+                await readJsonSafely<FeedbackMutationResponse>(
+                  response,
+                );
+
+              if (
+                !response.ok
+              ) {
+                setAlertMessage(
+                  {
+                    type: "error",
+
+                    message:
+                      getFeedbackActionError(
+                        response.status,
+                        data?.error,
+                      ),
+                  },
+                );
+
+                return;
+              }
+
+              setAlertMessage(
+                {
+                  type: "info",
+
+                  message: `${data?.count ?? parsedItems.length} feedback entries imported. They are not classified or searchable in Ask LOOP yet — reclassification is required before they can be indexed.`,
+                },
+              );
+
+              setLoading(
+                true,
+              );
+
+              setPage(1);
+
+              setRequestVersion(
+                (
+                  current,
+                ) =>
+                  current +
+                  1,
+              );
+            } catch {
+              setAlertMessage(
+                {
+                  type: "error",
+
+                  message:
+                    "The feedback service could not be reached. CSV data was not uploaded.",
+                },
+              );
+            } finally {
+              setCsvUploading(
+                false,
+              );
+
+              setCsvFileName(
+                "",
+              );
+
+              if (
+                csvInputRef.current
+              ) {
+                csvInputRef.current.value =
+                  "";
+              }
+            }
+          },
+
+        error: () => {
+          setCsvUploading(
+            false,
+          );
+
+          setCsvFileName(
+            "",
+          );
+
+          setAlertMessage(
             {
-              method: "POST",
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
-              body: JSON.stringify({
-                items: parsedItems,
-              }),
+              type: "error",
+
+              message:
+                "Unable to read the selected CSV file.",
             },
           );
 
-          const data =
-            await readJsonSafely<FeedbackMutationResponse>(
-              response,
-            );
-
-          if (!response.ok) {
-            setAlertMessage({
-              type: "error",
-              message:
-                getFeedbackActionError(
-                  response.status,
-                  data?.error,
-                ),
-            });
-            return;
+          if (
+            csvInputRef.current
+          ) {
+            csvInputRef.current.value =
+              "";
           }
-
-          setAlertMessage({
-            type: "info",
-            // Imported rows are intentionally not classified inline (too slow
-            // for a whole CSV), so they aren't searchable by Ask LOOP yet.
-            // Say that plainly instead of implying the import is complete.
-            message: `${data?.count || parsedItems.length} feedback entries imported. They are not classified or searchable in Ask LOOP yet — run reclassification to index them.`,
-          });
-
-          if (page === 1) {
-            await fetchFeedback(true);
-          } else {
-            setPage(1);
-          }
-        } catch {
-          setAlertMessage({
-            type: "error",
-            message:
-              "The feedback service could not be reached. CSV data was not uploaded.",
-          });
-        } finally {
-          setCsvUploading(false);
-          setCsvFileName("");
-
-          if (csvInputRef.current) {
-            csvInputRef.current.value = "";
-          }
-        }
+        },
       },
-
-      error: () => {
-        setCsvUploading(false);
-        setCsvFileName("");
-
-        setAlertMessage({
-          type: "error",
-          message:
-            "Unable to read the selected CSV file.",
-        });
-
-        if (csvInputRef.current) {
-          csvInputRef.current.value = "";
-        }
-      },
-    });
+    );
   }
 
   function downloadCsvTemplate() {
-    const templateContent = [
-      "content,customer,channel",
-      '"The application is easy to use","Ananya R","Web Form"',
-      '"Payment confirmation was delayed","Rahul K","App Review"',
-    ].join("\n");
+    const templateContent =
+      "content,customer,channel\n";
 
-    const blob = new Blob([templateContent], {
-      type: "text/csv;charset=utf-8",
-    });
+    const blob =
+      new Blob(
+        [
+          templateContent,
+        ],
+        {
+          type: "text/csv;charset=utf-8",
+        },
+      );
 
-    const url = URL.createObjectURL(blob);
+    const url =
+      URL.createObjectURL(
+        blob,
+      );
 
     const anchor =
-      document.createElement("a");
+      document.createElement(
+        "a",
+      );
 
     anchor.href = url;
+
     anchor.download =
       "loop-feedback-template.csv";
 
-    document.body.appendChild(anchor);
+    document.body.appendChild(
+      anchor,
+    );
+
     anchor.click();
+
     anchor.remove();
 
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(
+      url,
+    );
   }
 
   return (
     <LoopShell
-      title="Feedback Intelligence Inbox"
-      subtitle="Ingest, filter and manage workspace customer feedback in real time."
+      title="Feedback"
+      subtitle="Capture, search and review customer feedback from your workspace."
     >
-      <div className="relative space-y-7">
+      <div className="mx-auto max-w-[1500px] space-y-5">
         {alertMessage && (
-          <div
-            className={`fixed right-4 top-24 z-[70] flex max-w-sm items-start gap-3 rounded-2xl border bg-white p-4 shadow-2xl sm:right-8 ${
-              alertMessage.type === "success"
-                ? "border-emerald-200"
-                : alertMessage.type === "error"
-                  ? "border-rose-200"
-                  : "border-blue-200"
-            }`}
-          >
-            <span
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-bold ${
-                alertMessage.type === "success"
-                  ? "bg-emerald-100 text-emerald-700"
-                  : alertMessage.type === "error"
-                    ? "bg-rose-100 text-rose-700"
-                    : "bg-blue-100 text-blue-700"
-              }`}
+          <AlertToast
+            alert={
+              alertMessage
+            }
+            onClose={() =>
+              setAlertMessage(
+                null,
+              )
+            }
+          />
+        )}
+
+        <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-slate-950 dark:text-white">
+              Feedback inbox
+            </p>
+
+            <p className="mt-1 text-[11px] leading-5 text-slate-500 dark:text-slate-400">
+              Review feedback stored in the current workspace.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={
+                refreshFeedback
+              }
+              disabled={
+                refreshing
+              }
+              className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
             >
-              {alertMessage.type === "success"
-                ? "✓"
-                : alertMessage.type === "error"
-                  ? "!"
-                  : "i"}
-            </span>
+              <RefreshIcon
+                spinning={
+                  refreshing
+                }
+              />
 
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-slate-950">
-                {alertMessage.type === "success"
-                  ? "Success"
-                  : alertMessage.type === "error"
-                    ? "Something went wrong"
-                    : "Information"}
-              </p>
-
-              <p className="mt-1 text-xs leading-5 text-slate-600">
-                {alertMessage.message}
-              </p>
-            </div>
+              {refreshing
+                ? "Refreshing"
+                : "Refresh"}
+            </button>
 
             <button
               type="button"
-              onClick={() =>
-                setAlertMessage(null)
-              }
-              aria-label="Close message"
-              className="text-slate-400 transition hover:text-slate-700"
+              onClick={() => {
+                setShowCsvModal(
+                  (
+                    current,
+                  ) =>
+                    !current,
+                );
+
+                setShowForm(
+                  false,
+                );
+              }}
+              className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
             >
-              ×
+              <UploadIcon />
+
+              Import CSV
             </button>
-          </div>
-        )}
 
-        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-blue-950 to-violet-950 p-6 text-white shadow-xl sm:p-8">
-          <div className="absolute -left-20 top-10 h-64 w-64 rounded-full bg-blue-600/20 blur-3xl" />
+            <button
+              type="button"
+              onClick={() => {
+                setShowForm(
+                  (
+                    current,
+                  ) =>
+                    !current,
+                );
 
-          <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-violet-500/20 blur-3xl" />
+                setShowCsvModal(
+                  false,
+                );
+              }}
+              className="inline-flex h-9 items-center gap-2 rounded-xl bg-blue-600 px-3.5 text-[11px] font-semibold text-white transition hover:bg-blue-500"
+            >
+              <PlusIcon />
 
-          <div className="relative flex flex-col justify-between gap-7 lg:flex-row lg:items-center">
-            <div className="max-w-2xl">
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-blue-100 backdrop-blur">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
-
-                  Live Supabase Inbox
-                </span>
-
-                <span className="rounded-full bg-violet-400/10 px-3 py-1.5 text-xs font-bold text-violet-200">
-                  Multi-tenant workspace
-                </span>
-              </div>
-
-              <h1 className="mt-5 text-3xl font-bold leading-tight sm:text-4xl">
-                Unified Feedback Intelligence
-              </h1>
-
-              <p className="mt-4 max-w-xl text-sm leading-7 text-slate-300">
-                Collect individual feedback, import
-                CSV files and trigger automatic
-                sentiment and theme classification.
-              </p>
-
-              <div className="mt-5 flex flex-wrap gap-4 text-xs font-semibold text-slate-300">
-                <HeroFeature>
-                  Live database
-                </HeroFeature>
-
-                <HeroFeature>
-                  AI classification
-                </HeroFeature>
-
-                <HeroFeature>
-                  CSV ingestion
-                </HeroFeature>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2 lg:w-[360px]">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCsvModal(
-                    (previous) => !previous,
-                  );
-                  setShowForm(false);
-                }}
-                className="flex items-center justify-between rounded-2xl border border-white/20 bg-white/10 px-5 py-4 text-left text-white backdrop-blur transition hover:bg-white/20"
-              >
-                <span>
-                  <span className="block text-sm font-bold">
-                    CSV Bulk Upload
-                  </span>
-
-                  <span className="mt-1 block text-xs text-slate-300">
-                    Import multiple entries
-                  </span>
-                </span>
-
-                <UploadIcon />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowForm(
-                    (previous) => !previous,
-                  );
-                  setShowCsvModal(false);
-                }}
-                className="flex items-center justify-between rounded-2xl bg-white px-5 py-4 text-left text-slate-950 shadow-lg transition hover:-translate-y-0.5 hover:bg-blue-50"
-              >
-                <span>
-                  <span className="block text-sm font-bold">
-                    Add Feedback
-                  </span>
-
-                  <span className="mt-1 block text-xs text-slate-500">
-                    Create single entry
-                  </span>
-                </span>
-
-                <PlusIcon />
-              </button>
-            </div>
+              Add feedback
+            </button>
           </div>
         </section>
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <SummaryCard
-            title="Workspace Entries"
-            value={totalCount}
-            description="Total database records"
-            badge="Live DB"
+          <MetricCard
+            label="Workspace feedback"
+            value={
+              loading
+                ? "—"
+                : totalCount.toLocaleString()
+            }
+            helper="Total matching records"
+            icon={
+              <DatabaseIcon />
+            }
             tone="blue"
-            icon={<DatabaseIcon />}
           />
 
-          <SummaryCard
-            title="Positive Sentiment"
-            value={currentPageStats.positive}
-            description="Visible on current page"
-            badge="Current page"
+          <MetricCard
+            label="Positive"
+            value={
+              loading
+                ? "—"
+                : currentPageStats.positive.toLocaleString()
+            }
+            helper="Visible on this page"
+            icon={
+              <PositiveIcon />
+            }
             tone="emerald"
-            icon={<PositiveIcon />}
           />
 
-          <SummaryCard
-            title="Needs Attention"
-            value={currentPageStats.negative}
-            description="Negative feedback visible"
-            badge="Review"
+          <MetricCard
+            label="Negative"
+            value={
+              loading
+                ? "—"
+                : currentPageStats.negative.toLocaleString()
+            }
+            helper="Visible on this page"
+            icon={
+              <WarningIcon />
+            }
             tone="rose"
-            icon={<WarningIcon />}
           />
 
-          <SummaryCard
-            title="New Entries"
-            value={currentPageStats.newItems}
-            description="Waiting for review"
-            badge="Pending"
+          <MetricCard
+            label="Unclassified"
+            value={
+              loading
+                ? "—"
+                : currentPageStats.unclassified.toLocaleString()
+            }
+            helper={`${currentPageStats.newItems} new on this page`}
+            icon={
+              <AnalysisIcon />
+            }
             tone="violet"
-            icon={<NewIcon />}
           />
         </section>
 
         {showCsvModal && (
-          <section className="overflow-hidden rounded-3xl border border-blue-200 bg-white shadow-lg">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-gradient-to-r from-blue-50 to-violet-50 p-6 sm:p-7">
-              <div className="flex items-start gap-4">
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-200">
-                  <UploadIcon />
-                </span>
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5 dark:border-slate-800">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-950 dark:text-white">
+                  Import feedback from CSV
+                </h2>
 
-                <div>
-                  <h2 className="text-xl font-bold text-slate-950">
-                    CSV Bulk Ingestion
-                  </h2>
-
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    Upload multiple customer feedback
-                    records in one operation.
-                  </p>
-                </div>
+                <p className="mt-1 text-[11px] leading-5 text-slate-500 dark:text-slate-400">
+                  The file must contain a content or feedback column. Customer and channel are optional.
+                </p>
               </div>
 
-              <button
-                type="button"
+              <CloseButton
+                label="Close CSV import"
                 onClick={() =>
-                  setShowCsvModal(false)
+                  setShowCsvModal(
+                    false,
+                  )
                 }
-                aria-label="Close CSV upload"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
-              >
-                ×
-              </button>
+              />
             </div>
 
-            <div className="p-6 sm:p-8">
-              <div className="rounded-3xl border-2 border-dashed border-slate-300 bg-slate-50 p-7 text-center transition hover:border-blue-300 hover:bg-blue-50/50 sm:p-10">
-                <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-sm">
+            <div className="p-5">
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-7 text-center dark:border-slate-700 dark:bg-slate-800/40">
+                <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white text-blue-600 shadow-sm dark:bg-slate-800 dark:text-blue-300">
                   <CsvIcon />
                 </span>
 
-                <h3 className="mt-5 font-bold text-slate-950">
+                <p className="mt-4 text-sm font-semibold text-slate-900 dark:text-white">
                   Select a CSV file
-                </h3>
-
-                <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-500">
-                  Required feedback column:
-                  <code className="mx-1 rounded bg-slate-200 px-1.5 py-0.5 text-xs">
-                    content
-                  </code>
-                  or
-                  <code className="mx-1 rounded bg-slate-200 px-1.5 py-0.5 text-xs">
-                    feedback
-                  </code>
-                  . Optional columns are customer and
-                  channel.
                 </p>
 
-                <label className="mx-auto mt-6 flex w-fit cursor-pointer items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700">
+                <p className="mx-auto mt-2 max-w-lg text-[11px] leading-5 text-slate-500 dark:text-slate-400">
+                  Maximum file size is 5 MB. Supported feedback headings include content and feedback.
+                </p>
+
+                <label className="mx-auto mt-5 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-blue-500">
                   <UploadIcon />
 
-                  Choose CSV File
+                  Choose CSV
 
                   <input
-                    ref={csvInputRef}
+                    ref={
+                      csvInputRef
+                    }
                     type="file"
                     accept=".csv,text/csv"
-                    disabled={csvUploading}
+                    disabled={
+                      csvUploading
+                    }
                     onChange={
                       handleCsvFileUpload
                     }
@@ -1093,44 +1646,43 @@ export default function FeedbackPage() {
                 </label>
 
                 {csvFileName && (
-                  <p className="mt-4 text-xs font-semibold text-blue-700">
-                    Selected: {csvFileName}
+                  <p className="mt-3 text-[10px] font-medium text-blue-600 dark:text-blue-400">
+                    {
+                      csvFileName
+                    }
                   </p>
                 )}
 
                 {csvUploading && (
-                  <div className="mx-auto mt-5 max-w-md">
-                    <div className="h-2 overflow-hidden rounded-full bg-blue-100">
-                      <div className="h-full w-3/4 animate-pulse rounded-full bg-gradient-to-r from-blue-600 to-violet-600" />
-                    </div>
+                  <div className="mx-auto mt-4 flex max-w-sm items-center justify-center gap-2 text-[11px] font-semibold text-blue-600 dark:text-blue-400">
+                    <LoadingSpinner />
 
-                    <p className="mt-3 text-xs font-semibold text-blue-700">
-                      Parsing and uploading feedback…
-                    </p>
+                    Importing feedback…
                   </div>
                 )}
               </div>
 
-              <div className="mt-5 flex flex-col gap-4 rounded-2xl border border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
                 <div>
-                  <p className="text-sm font-bold text-slate-900">
-                    Need the correct CSV format?
+                  <p className="text-xs font-semibold text-slate-900 dark:text-white">
+                    CSV template
                   </p>
 
-                  <p className="mt-1 text-xs text-slate-500">
-                    Download a ready-to-use sample
-                    template.
+                  <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                    Download the expected column headings.
                   </p>
                 </div>
 
                 <button
                   type="button"
-                  onClick={downloadCsvTemplate}
-                  className="flex items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-100"
+                  onClick={
+                    downloadCsvTemplate
+                  }
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-slate-200 px-3.5 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   <DownloadIcon />
 
-                  Download Template
+                  Download template
                 </button>
               </div>
             </div>
@@ -1138,145 +1690,183 @@ export default function FeedbackPage() {
         )}
 
         {showForm && (
-          <section className="overflow-hidden rounded-3xl border border-blue-200 bg-white shadow-lg">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-gradient-to-r from-blue-50 via-indigo-50 to-violet-50 p-6 sm:p-7">
-              <div className="flex items-start gap-4">
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-violet-600 text-white shadow-lg shadow-blue-200">
-                  <MessageIcon />
-                </span>
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5 dark:border-slate-800">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-950 dark:text-white">
+                  Add customer feedback
+                </h2>
 
-                <div>
-                  <h2 className="text-xl font-bold text-slate-950">
-                    Add Customer Feedback
-                  </h2>
-
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    Save a new feedback entry and
-                    trigger AI classification.
-                  </p>
-                </div>
+                <p className="mt-1 text-[11px] leading-5 text-slate-500 dark:text-slate-400">
+                  Create a new feedback record in the workspace.
+                </p>
               </div>
 
-              <button
-                type="button"
-                onClick={closeFeedbackForm}
-                aria-label="Close feedback form"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
-              >
-                ×
-              </button>
+              <CloseButton
+                label="Close feedback form"
+                onClick={
+                  closeFeedbackForm
+                }
+              />
             </div>
 
             <form
-              onSubmit={handleSubmit}
-              className="grid gap-5 p-6 sm:p-8 md:grid-cols-2"
+              onSubmit={
+                handleSubmit
+              }
+              className="grid gap-5 p-5 md:grid-cols-2"
             >
               <FormField label="Customer name">
                 <input
-                  id="customerName"
-                  value={customerName}
-                  onChange={(event) => {
+                  value={
+                    customerName
+                  }
+                  onChange={(
+                    event,
+                  ) => {
                     setCustomerName(
-                      event.target.value,
+                      event
+                        .target
+                        .value,
                     );
-                    setFormError("");
+
+                    setFormError(
+                      "",
+                    );
                   }}
-                  placeholder="Example: Rahul Sharma"
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  placeholder="Customer name"
+                  className={inputClassName}
                 />
               </FormField>
 
-              <FormField label="Channel source">
+              <FormField label="Channel">
                 <select
-                  id="channel"
-                  value={channel}
-                  onChange={(event) =>
-                    setChannel(event.target.value)
+                  value={
+                    channel
                   }
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  onChange={(
+                    event,
+                  ) =>
+                    setChannel(
+                      event
+                        .target
+                        .value,
+                    )
+                  }
+                  className={inputClassName}
                 >
                   {channelOptions
                     .filter(
-                      (option) =>
-                        option !== "CSV Import",
+                      (
+                        option,
+                      ) =>
+                        option !==
+                        "CSV Import",
                     )
-                    .map((option) => (
-                      <option
-                        key={option}
-                        value={option}
-                      >
-                        {option}
-                      </option>
-                    ))}
+                    .map(
+                      (
+                        option,
+                      ) => (
+                        <option
+                          key={
+                            option
+                          }
+                          value={
+                            option
+                          }
+                        >
+                          {
+                            option
+                          }
+                        </option>
+                      ),
+                    )}
                 </select>
               </FormField>
 
               <div className="md:col-span-2">
                 <div className="mb-2 flex items-center justify-between">
                   <label
-                    htmlFor="content"
-                    className="text-sm font-semibold text-slate-700"
+                    htmlFor="feedback-content"
+                    className="text-xs font-semibold text-slate-700 dark:text-slate-300"
                   >
                     Feedback content
-                    <span className="ml-1 text-rose-500">
-                      *
-                    </span>
                   </label>
 
-                  <span className="text-xs text-slate-400">
-                    {content.length}/2000
+                  <span className="text-[10px] text-slate-400">
+                    {
+                      content.length
+                    }
+                    /2000
                   </span>
                 </div>
 
                 <textarea
-                  id="content"
+                  id="feedback-content"
                   rows={5}
                   required
-                  maxLength={2000}
-                  value={content}
-                  onChange={(event) => {
-                    setContent(event.target.value);
-                    setFormError("");
+                  maxLength={
+                    2000
+                  }
+                  value={
+                    content
+                  }
+                  onChange={(
+                    event,
+                  ) => {
+                    setContent(
+                      event
+                        .target
+                        .value,
+                    );
+
+                    setFormError(
+                      "",
+                    );
                   }}
-                  placeholder="Enter the customer's feedback message…"
-                  className="w-full resize-none rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  placeholder="Enter customer feedback…"
+                  className={`${inputClassName} resize-none leading-6`}
                 />
               </div>
 
               {formError && (
-                <div className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700 md:col-span-2">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-rose-100">
-                    !
-                  </span>
-
-                  {formError}
+                <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs font-medium text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/20 dark:text-rose-300 md:col-span-2">
+                  {
+                    formError
+                  }
                 </div>
               )}
 
-              <div className="flex flex-col-reverse gap-3 md:col-span-2 sm:flex-row sm:justify-end">
+              <div className="flex flex-col-reverse gap-2 md:col-span-2 sm:flex-row sm:justify-end">
                 <button
                   type="button"
-                  onClick={closeFeedbackForm}
-                  disabled={submitting}
-                  className="rounded-xl border border-slate-300 px-6 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+                  onClick={
+                    closeFeedbackForm
+                  }
+                  disabled={
+                    submitting
+                  }
+                  className="h-10 rounded-xl border border-slate-200 px-4 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   Cancel
                 </button>
 
                 <button
                   type="submit"
-                  disabled={submitting}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={
+                    submitting
+                  }
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-xs font-semibold text-white transition hover:bg-blue-500 disabled:opacity-50"
                 >
                   {submitting ? (
                     <>
                       <LoadingSpinner />
 
-                      Saving Feedback…
+                      Saving…
                     </>
                   ) : (
                     <>
-                      Save Feedback
+                      Save feedback
 
                       <ArrowIcon />
                     </>
@@ -1287,102 +1877,88 @@ export default function FeedbackPage() {
           </section>
         )}
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h2 className="font-bold text-slate-950">
-                Search and Filters
-              </h2>
-
-              <p className="mt-1 text-xs text-slate-500">
-                Find feedback by customer, message,
-                sentiment, channel or status.
-              </p>
-            </div>
-
-            <div className="flex gap-2">
-              {hasActiveFilters && (
-                <button
-                  type="button"
-                  onClick={resetFilters}
-                  className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-100"
-                >
-                  Clear Filters
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() =>
-                  void fetchFeedback(true)
-                }
-                disabled={refreshing}
-                className="flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-xs font-bold text-white transition hover:bg-slate-800 disabled:opacity-60"
-              >
-                <RefreshIcon
-                  spinning={refreshing}
-                />
-
-                {refreshing
-                  ? "Refreshing"
-                  : "Refresh"}
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-[1.5fr_1fr_1fr_1fr]">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="grid gap-3 lg:grid-cols-[minmax(260px,1.5fr)_1fr_1fr_1fr_auto]">
             <div className="relative">
-              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+              <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
                 <SearchIcon />
               </span>
 
               <input
                 value={search}
-                onChange={(event) =>
-                  setSearch(event.target.value)
+                onChange={(
+                  event,
+                ) =>
+                  setSearch(
+                    event.target
+                      .value,
+                  )
                 }
-                placeholder="Search customer or feedback…"
-                className="w-full rounded-xl border border-slate-300 bg-slate-50 py-3 pl-11 pr-4 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                placeholder="Search feedback…"
+                className={`${inputClassName} pl-10`}
               />
             </div>
 
             <FilterSelect
               label="Sentiment"
-              value={sentimentFilter}
-              onChange={setSentimentFilter}
+              value={
+                sentimentFilter
+              }
+              onChange={
+                changeSentimentFilter
+              }
               options={[
                 {
-                  value: "All",
-                  label: "All sentiments",
+                  value:
+                    "All",
+                  label:
+                    "All sentiments",
                 },
                 {
-                  value: "POSITIVE",
-                  label: "Positive",
+                  value:
+                    "POSITIVE",
+                  label:
+                    "Positive",
                 },
                 {
-                  value: "NEUTRAL",
-                  label: "Neutral",
+                  value:
+                    "NEUTRAL",
+                  label:
+                    "Neutral",
                 },
                 {
-                  value: "NEGATIVE",
-                  label: "Negative",
+                  value:
+                    "NEGATIVE",
+                  label:
+                    "Negative",
                 },
               ]}
             />
 
             <FilterSelect
               label="Channel"
-              value={channelFilter}
-              onChange={setChannelFilter}
+              value={
+                channelFilter
+              }
+              onChange={
+                changeChannelFilter
+              }
               options={[
                 {
-                  value: "All",
-                  label: "All channels",
+                  value:
+                    "All",
+                  label:
+                    "All channels",
                 },
+
                 ...channelOptions.map(
-                  (option) => ({
-                    value: option,
-                    label: option,
+                  (
+                    option,
+                  ) => ({
+                    value:
+                      option,
+                    label:
+                      option,
                   }),
                 ),
               ]}
@@ -1390,51 +1966,83 @@ export default function FeedbackPage() {
 
             <FilterSelect
               label="Status"
-              value={statusFilter}
-              onChange={setStatusFilter}
+              value={
+                statusFilter
+              }
+              onChange={
+                changeStatusFilter
+              }
               options={[
                 {
-                  value: "All",
-                  label: "All statuses",
+                  value:
+                    "All",
+                  label:
+                    "All statuses",
                 },
                 {
-                  value: "NEW",
-                  label: "New",
+                  value:
+                    "NEW",
+                  label:
+                    "New",
                 },
                 {
-                  value: "REVIEWED",
-                  label: "Reviewed",
+                  value:
+                    "REVIEWED",
+                  label:
+                    "Reviewed",
                 },
                 {
-                  value: "ACTIONED",
-                  label: "Actioned",
+                  value:
+                    "ACTIONED",
+                  label:
+                    "Actioned",
                 },
               ]}
             />
+
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={
+                  resetFilters
+                }
+                className="h-10 rounded-xl border border-slate-200 px-3.5 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                Clear
+              </button>
+            )}
           </div>
         </section>
 
-        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-4 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex flex-col gap-3 border-b border-slate-200 p-5 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-bold text-slate-950">
-                  Workspace Feedback
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-slate-950 dark:text-white">
+                  Workspace feedback
                 </h2>
 
-                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
-                  {totalCount} total
+                <span className="rounded-full bg-slate-100 px-2 py-1 text-[9px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                  {
+                    totalCount
+                  }{" "}
+                  total
                 </span>
               </div>
 
-              <p className="mt-1 text-sm text-slate-500">
-                Showing {feedbackList.length} entries
-                on page {page}.
+              <p className="mt-1 text-[10px] text-slate-400">
+                Showing{" "}
+                {
+                  feedbackList.length
+                }{" "}
+                records on page{" "}
+                {page}
               </p>
             </div>
 
-            <p className="text-xs font-semibold text-slate-400">
-              Page {page} of {totalPages}
+            <p className="text-[10px] font-medium text-slate-400">
+              Page {page} of{" "}
+              {totalPages}
             </p>
           </div>
 
@@ -1442,25 +2050,37 @@ export default function FeedbackPage() {
             <FeedbackSkeleton />
           ) : fetchError ? (
             <ErrorState
-              error={fetchError}
-              onRetry={() =>
-                void fetchFeedback()
+              error={
+                fetchError
+              }
+              onRetry={
+                retryFeedback
               }
             />
-          ) : feedbackList.length === 0 ? (
+          ) : feedbackList.length ===
+            0 ? (
             <EmptyState
-              hasFilters={hasActiveFilters}
-              onClear={resetFilters}
+              hasFilters={
+                hasActiveFilters
+              }
+              onClear={
+                resetFilters
+              }
               onAdd={() => {
-                setShowForm(true);
-                setShowCsvModal(false);
+                setShowForm(
+                  true,
+                );
+
+                setShowCsvModal(
+                  false,
+                );
               }}
             />
           ) : (
             <>
               <div className="hidden overflow-x-auto lg:block">
-                <table className="w-full min-w-[1120px] text-left">
-                  <thead className="bg-slate-50">
+                <table className="w-full min-w-[1060px] text-left">
+                  <thead className="bg-slate-50 dark:bg-slate-800/50">
                     <tr>
                       <TableHeading>
                         Customer
@@ -1471,15 +2091,15 @@ export default function FeedbackPage() {
                       </TableHeading>
 
                       <TableHeading>
-                        Themes
-                      </TableHeading>
-
-                      <TableHeading>
                         Channel
                       </TableHeading>
 
                       <TableHeading>
                         Sentiment
+                      </TableHeading>
+
+                      <TableHeading>
+                        Themes
                       </TableHeading>
 
                       <TableHeading>
@@ -1496,245 +2116,72 @@ export default function FeedbackPage() {
                     </tr>
                   </thead>
 
-                  <tbody className="divide-y divide-slate-100">
-                    {feedbackList.map((item) => (
-                      <tr
-                        key={item.id}
-                        className="transition hover:bg-slate-50"
-                      >
-                        <td className="px-6 py-5">
-                          <div className="flex items-center gap-3">
-                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-800 to-slate-950 text-xs font-bold text-white">
-                              {getInitials(
-                                item.customerName,
-                              )}
-                            </span>
-
-                            <div className="min-w-0">
-                              <p className="max-w-40 truncate text-sm font-bold text-slate-900">
-                                {item.customerName ||
-                                  "Anonymous Customer"}
-                              </p>
-
-                              <p className="mt-0.5 max-w-32 truncate text-xs text-slate-400">
-                                {item.id}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="max-w-md px-6 py-5">
-                          <p className="line-clamp-3 text-sm leading-6 text-slate-600">
-                            {item.content}
-                          </p>
-                        </td>
-
-                        <td className="px-6 py-5">
-                          <div className="flex max-w-52 flex-wrap gap-1.5">
-                            {item.themes &&
-                            item.themes.length >
-                              0 ? (
-                              item.themes
-                                .slice(0, 3)
-                                .map((themeItem) => (
-                                  <span
-                                    key={
-                                      themeItem.theme
-                                        .name
-                                    }
-                                    className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[10px] font-bold text-blue-700"
-                                  >
-                                    {
-                                      themeItem.theme
-                                        .name
-                                    }
-                                  </span>
-                                ))
-                            ) : (
-                              <span className="text-xs text-slate-400">
-                                Uncategorized
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        <td className="whitespace-nowrap px-6 py-5 text-sm font-medium text-slate-600">
-                          {item.channel}
-                        </td>
-
-                        <td className="px-6 py-5">
-                          <span
-                            className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${getSentimentStyle(
-                              item.sentiment,
-                            )}`}
-                          >
-                            {formatLabel(
-                              item.sentiment,
-                            )}
-                          </span>
-
-                          {typeof item.sentimentScore ===
-                            "number" && (
-                            <p className="mt-1 text-[10px] font-semibold text-slate-400">
-                              {Math.round(
-                                item.sentimentScore *
-                                  100,
-                              )}
-                              % confidence
-                            </p>
-                          )}
-                        </td>
-
-                        <td className="px-6 py-5">
-                          <span
-                            className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${getStatusStyle(
-                              item.status,
-                            )}`}
-                          >
-                            {formatLabel(
-                              item.status,
-                            )}
-                          </span>
-                        </td>
-
-                        <td className="whitespace-nowrap px-6 py-5">
-                          <p className="text-xs font-semibold text-slate-600">
-                            {formatDate(
-                              item.createdAt,
-                            )}
-                          </p>
-
-                          <p className="mt-1 text-[10px] text-slate-400">
-                            {formatTime(
-                              item.createdAt,
-                            )}
-                          </p>
-                        </td>
-
-                        <td className="px-6 py-5">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setSelectedFeedback(
-                                item,
-                              )
-                            }
-                            className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                          >
-                            View
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {feedbackList.map(
+                      (
+                        item,
+                      ) => (
+                        <FeedbackTableRow
+                          key={
+                            item.id
+                          }
+                          item={
+                            item
+                          }
+                          onView={() =>
+                            setSelectedFeedback(
+                              item,
+                            )
+                          }
+                        />
+                      ),
+                    )}
                   </tbody>
                 </table>
               </div>
 
-              <div className="divide-y divide-slate-100 lg:hidden">
-                {feedbackList.map((item) => (
-                  <article
-                    key={item.id}
-                    className="p-5"
-                  >
-                    <div className="flex items-start gap-3">
-                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-800 to-slate-950 text-xs font-bold text-white">
-                        {getInitials(
-                          item.customerName,
-                        )}
-                      </span>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div>
-                            <p className="font-bold text-slate-900">
-                              {item.customerName ||
-                                "Anonymous Customer"}
-                            </p>
-
-                            <p className="mt-1 text-xs text-slate-400">
-                              {item.channel} ·{" "}
-                              {formatDate(
-                                item.createdAt,
-                              )}
-                            </p>
-                          </div>
-
-                          <span
-                            className={`rounded-full border px-3 py-1 text-xs font-bold ${getSentimentStyle(
-                              item.sentiment,
-                            )}`}
-                          >
-                            {formatLabel(
-                              item.sentiment,
-                            )}
-                          </span>
-                        </div>
-
-                        <p className="mt-3 line-clamp-4 text-sm leading-6 text-slate-600">
-                          {item.content}
-                        </p>
-
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          <span
-                            className={`rounded-full border px-3 py-1 text-[10px] font-bold ${getStatusStyle(
-                              item.status,
-                            )}`}
-                          >
-                            {formatLabel(
-                              item.status,
-                            )}
-                          </span>
-
-                          {item.themes
-                            ?.slice(0, 2)
-                            .map((themeItem) => (
-                              <span
-                                key={
-                                  themeItem.theme.name
-                                }
-                                className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-blue-700"
-                              >
-                                {
-                                  themeItem.theme
-                                    .name
-                                }
-                              </span>
-                            ))}
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setSelectedFeedback(item)
-                          }
-                          className="mt-4 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-100"
-                        >
-                          View Full Feedback
-                        </button>
-                      </div>
-                    </div>
-                  </article>
-                ))}
+              <div className="divide-y divide-slate-100 dark:divide-slate-800 lg:hidden">
+                {feedbackList.map(
+                  (
+                    item,
+                  ) => (
+                    <FeedbackMobileCard
+                      key={
+                        item.id
+                      }
+                      item={
+                        item
+                      }
+                      onView={() =>
+                        setSelectedFeedback(
+                          item,
+                        )
+                      }
+                    />
+                  ),
+                )}
               </div>
             </>
           )}
 
-          <div className="flex flex-col gap-4 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            <p className="text-xs font-semibold text-slate-500">
-              Page {page} of {totalPages} ·{" "}
-              {totalCount} total entries
+          <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-800/30 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400">
+              Page {page} of{" "}
+              {totalPages} ·{" "}
+              {totalCount} total
             </p>
 
-            <div className="grid grid-cols-2 gap-2 sm:flex">
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                disabled={page <= 1 || loading}
-                onClick={() =>
-                  setPage((previous) =>
-                    Math.max(previous - 1, 1),
-                  )
+                disabled={
+                  page <= 1 ||
+                  loading
                 }
-                className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                onClick={
+                  goToPreviousPage
+                }
+                className="h-9 rounded-xl border border-slate-200 bg-white px-4 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 ← Previous
               </button>
@@ -1742,17 +2189,14 @@ export default function FeedbackPage() {
               <button
                 type="button"
                 disabled={
-                  page >= totalPages || loading
+                  page >=
+                    totalPages ||
+                  loading
                 }
-                onClick={() =>
-                  setPage((previous) =>
-                    Math.min(
-                      previous + 1,
-                      totalPages,
-                    ),
-                  )
+                onClick={
+                  goToNextPage
                 }
-                className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                className="h-9 rounded-xl border border-slate-200 bg-white px-4 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 Next →
               </button>
@@ -1762,9 +2206,13 @@ export default function FeedbackPage() {
 
         {selectedFeedback && (
           <FeedbackDetailModal
-            item={selectedFeedback}
+            item={
+              selectedFeedback
+            }
             onClose={() =>
-              setSelectedFeedback(null)
+              setSelectedFeedback(
+                null,
+              )
             }
           />
         )}
@@ -1773,83 +2221,289 @@ export default function FeedbackPage() {
   );
 }
 
-function SummaryCard({
-  title,
+const inputClassName =
+  "h-10 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-xs text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500";
+
+function MetricCard({
+  label,
   value,
-  description,
-  badge,
-  tone,
+  helper,
   icon,
+  tone,
 }: {
-  title: string;
-  value: number;
-  description: string;
-  badge: string;
+  label: string;
+  value: string;
+  helper: string;
+  icon: ReactNode;
   tone:
     | "blue"
     | "emerald"
     | "rose"
     | "violet";
-  icon: ReactNode;
 }) {
-  const styles = {
-    blue: {
-      icon: "bg-blue-100 text-blue-700",
-      badge: "bg-blue-50 text-blue-700",
-      line: "from-blue-600 to-cyan-500",
-    },
-    emerald: {
-      icon: "bg-emerald-100 text-emerald-700",
-      badge:
-        "bg-emerald-50 text-emerald-700",
-      line: "from-emerald-600 to-teal-500",
-    },
-    rose: {
-      icon: "bg-rose-100 text-rose-700",
-      badge: "bg-rose-50 text-rose-700",
-      line: "from-rose-600 to-orange-500",
-    },
-    violet: {
-      icon: "bg-violet-100 text-violet-700",
-      badge:
-        "bg-violet-50 text-violet-700",
-      line: "from-violet-600 to-fuchsia-500",
-    },
+  const tones = {
+    blue:
+      "bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300",
+
+    emerald:
+      "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300",
+
+    rose:
+      "bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300",
+
+    violet:
+      "bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300",
   };
 
-  const style = styles[tone];
-
   return (
-    <article className="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
-      <span
-        className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${style.line}`}
-      />
+    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+            {label}
+          </p>
 
-      <div className="flex items-start justify-between">
+          <p className="mt-3 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">
+            {value}
+          </p>
+        </div>
+
         <span
-          className={`flex h-11 w-11 items-center justify-center rounded-xl ${style.icon}`}
+          className={`flex h-9 w-9 items-center justify-center rounded-xl ${tones[tone]}`}
         >
           {icon}
         </span>
-
-        <span
-          className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${style.badge}`}
-        >
-          {badge}
-        </span>
       </div>
 
-      <p className="mt-5 text-sm font-semibold text-slate-500">
-        {title}
+      <p className="mt-3 text-[10px] text-slate-400">
+        {helper}
       </p>
+    </article>
+  );
+}
 
-      <p className="mt-1 text-3xl font-black text-slate-950">
-        {value.toLocaleString()}
-      </p>
+function FeedbackTableRow({
+  item,
+  onView,
+}: {
+  item: FeedbackItem;
+  onView: () => void;
+}) {
+  return (
+    <tr className="transition hover:bg-slate-50 dark:hover:bg-slate-800/40">
+      <td className="px-5 py-4">
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[10px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            {getInitials(
+              item.customerName,
+            )}
+          </span>
 
-      <p className="mt-2 text-xs text-slate-400">
-        {description}
-      </p>
+          <p className="max-w-36 truncate text-xs font-semibold text-slate-900 dark:text-white">
+            {item.customerName ||
+              "Anonymous Customer"}
+          </p>
+        </div>
+      </td>
+
+      <td className="max-w-sm px-5 py-4">
+        <p className="line-clamp-2 text-xs leading-5 text-slate-600 dark:text-slate-300">
+          {item.content}
+        </p>
+      </td>
+
+      <td className="whitespace-nowrap px-5 py-4 text-xs text-slate-500 dark:text-slate-400">
+        {item.channel}
+      </td>
+
+      <td className="px-5 py-4">
+        <span
+          className={`inline-flex rounded-full border px-2.5 py-1 text-[9px] font-semibold ${getSentimentStyle(
+            item.sentiment,
+          )}`}
+        >
+          {formatSentiment(
+            item.sentiment,
+          )}
+        </span>
+
+        {typeof item.sentimentScore ===
+          "number" && (
+          <p className="mt-1 text-[9px] text-slate-400">
+            {Math.round(
+              item.sentimentScore *
+                100,
+            )}
+            %
+          </p>
+        )}
+      </td>
+
+      <td className="px-5 py-4">
+        <div className="flex max-w-44 flex-wrap gap-1">
+          {item.themes &&
+          item.themes.length >
+            0 ? (
+            item.themes
+              .slice(0, 3)
+              .map(
+                (
+                  themeItem,
+                ) => (
+                  <span
+                    key={
+                      themeItem
+                        .theme
+                        .name
+                    }
+                    className="rounded-full bg-blue-50 px-2 py-1 text-[9px] font-semibold text-blue-700 dark:bg-blue-950/30 dark:text-blue-300"
+                  >
+                    {
+                      themeItem
+                        .theme
+                        .name
+                    }
+                  </span>
+                ),
+              )
+          ) : (
+            <span className="text-[10px] text-slate-400">
+              None
+            </span>
+          )}
+        </div>
+      </td>
+
+      <td className="px-5 py-4">
+        <span
+          className={`inline-flex rounded-full border px-2.5 py-1 text-[9px] font-semibold ${getStatusStyle(
+            item.status,
+          )}`}
+        >
+          {formatLabel(
+            item.status,
+          )}
+        </span>
+      </td>
+
+      <td className="whitespace-nowrap px-5 py-4">
+        <p className="text-[10px] font-medium text-slate-600 dark:text-slate-300">
+          {formatDate(
+            item.createdAt,
+          )}
+        </p>
+
+        <p className="mt-1 text-[9px] text-slate-400">
+          {formatTime(
+            item.createdAt,
+          )}
+        </p>
+      </td>
+
+      <td className="px-5 py-4">
+        <button
+          type="button"
+          onClick={onView}
+          className="rounded-lg border border-slate-200 px-3 py-2 text-[10px] font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          View
+        </button>
+      </td>
+    </tr>
+  );
+}
+
+function FeedbackMobileCard({
+  item,
+  onView,
+}: {
+  item: FeedbackItem;
+  onView: () => void;
+}) {
+  return (
+    <article className="p-5">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-[10px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+          {getInitials(
+            item.customerName,
+          )}
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="text-xs font-semibold text-slate-900 dark:text-white">
+                {item.customerName ||
+                  "Anonymous Customer"}
+              </p>
+
+              <p className="mt-1 text-[10px] text-slate-400">
+                {item.channel} ·{" "}
+                {formatDate(
+                  item.createdAt,
+                )}
+              </p>
+            </div>
+
+            <span
+              className={`rounded-full border px-2.5 py-1 text-[9px] font-semibold ${getSentimentStyle(
+                item.sentiment,
+              )}`}
+            >
+              {formatSentiment(
+                item.sentiment,
+              )}
+            </span>
+          </div>
+
+          <p className="mt-3 line-clamp-3 text-xs leading-5 text-slate-600 dark:text-slate-300">
+            {item.content}
+          </p>
+
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            <span
+              className={`rounded-full border px-2.5 py-1 text-[9px] font-semibold ${getStatusStyle(
+                item.status,
+              )}`}
+            >
+              {formatLabel(
+                item.status,
+              )}
+            </span>
+
+            {item.themes
+              ?.slice(0, 2)
+              .map(
+                (
+                  themeItem,
+                ) => (
+                  <span
+                    key={
+                      themeItem
+                        .theme
+                        .name
+                    }
+                    className="rounded-full bg-blue-50 px-2.5 py-1 text-[9px] font-semibold text-blue-700 dark:bg-blue-950/30 dark:text-blue-300"
+                  >
+                    {
+                      themeItem
+                        .theme
+                        .name
+                    }
+                  </span>
+                ),
+              )}
+          </div>
+
+          <button
+            type="button"
+            onClick={onView}
+            className="mt-4 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-[10px] font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-300"
+          >
+            View details
+          </button>
+        </div>
+      </div>
     </article>
   );
 }
@@ -1863,7 +2517,7 @@ function FormField({
 }) {
   return (
     <div>
-      <label className="mb-2 block text-sm font-semibold text-slate-700">
+      <label className="mb-2 block text-xs font-semibold text-slate-700 dark:text-slate-300">
         {label}
       </label>
 
@@ -1880,7 +2534,9 @@ function FilterSelect({
 }: {
   label: string;
   value: string;
-  onChange: (value: string) => void;
+  onChange: (
+    value: string,
+  ) => void;
   options: {
     value: string;
     label: string;
@@ -1894,58 +2550,107 @@ function FilterSelect({
 
       <select
         value={value}
-        aria-label={label}
-        onChange={(event) =>
-          onChange(event.target.value)
+        aria-label={
+          label
         }
-        className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-100"
+        onChange={(
+          event,
+        ) =>
+          onChange(
+            event.target
+              .value,
+          )
+        }
+        className={inputClassName}
       >
-        {options.map((option) => (
-          <option
-            key={`${label}-${option.value}`}
-            value={option.value}
-          >
-            {option.label}
-          </option>
-        ))}
+        {options.map(
+          (
+            option,
+          ) => (
+            <option
+              key={`${label}-${option.value}`}
+              value={
+                option.value
+              }
+            >
+              {
+                option.label
+              }
+            </option>
+          ),
+        )}
       </select>
     </div>
   );
 }
 
-function HeroFeature({
-  children,
+function AlertToast({
+  alert,
+  onClose,
 }: {
-  children: ReactNode;
+  alert: AlertMessage;
+  onClose: () => void;
 }) {
+  const style =
+    alert.type ===
+    "success"
+      ? "border-emerald-200 text-emerald-700 dark:border-emerald-900 dark:text-emerald-300"
+      : alert.type ===
+          "error"
+        ? "border-rose-200 text-rose-700 dark:border-rose-900 dark:text-rose-300"
+        : "border-blue-200 text-blue-700 dark:border-blue-900 dark:text-blue-300";
+
   return (
-    <span className="flex items-center gap-2">
-      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-400/15 text-emerald-300">
-        ✓
+    <div
+      className={`fixed right-4 top-24 z-[70] flex max-w-sm items-start gap-3 rounded-xl border bg-white p-4 shadow-xl dark:bg-slate-900 ${style}`}
+    >
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-current/10 text-xs font-bold">
+        {alert.type ===
+        "success"
+          ? "✓"
+          : alert.type ===
+              "error"
+            ? "!"
+            : "i"}
       </span>
 
-      {children}
-    </span>
+      <p className="min-w-0 flex-1 text-xs leading-5">
+        {alert.message}
+      </p>
+
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close message"
+        className="text-slate-400 transition hover:text-slate-700 dark:hover:text-white"
+      >
+        ×
+      </button>
+    </div>
   );
 }
 
 function FeedbackSkeleton() {
   return (
-    <div className="space-y-3 p-5 sm:p-6">
-      {Array.from({ length: 6 }).map(
+    <div className="space-y-3 p-5">
+      {Array.from({
+        length: 5,
+      }).map(
         (_, index) => (
           <div
-            key={index}
-            className="flex animate-pulse gap-4 rounded-2xl border border-slate-100 p-4"
+            key={
+              index
+            }
+            className="flex animate-pulse gap-3 rounded-xl border border-slate-100 p-4 dark:border-slate-800"
           >
-            <div className="h-11 w-11 shrink-0 rounded-xl bg-slate-200" />
+            <div className="h-10 w-10 shrink-0 rounded-xl bg-slate-200 dark:bg-slate-800" />
 
-            <div className="flex-1 space-y-3">
-              <div className="h-4 w-40 rounded bg-slate-200" />
+            <div className="flex-1 space-y-2">
+              <div className="h-3 w-32 rounded bg-slate-200 dark:bg-slate-800" />
 
-              <div className="h-3 w-full rounded bg-slate-100" />
+              <div className="h-3 w-full rounded bg-slate-100 dark:bg-slate-800" />
 
-              <div className="h-3 w-2/3 rounded bg-slate-100" />
+              <div className="h-3 w-2/3 rounded bg-slate-100 dark:bg-slate-800" />
             </div>
           </div>
         ),
@@ -1961,144 +2666,51 @@ function ErrorState({
   error: FeedbackServiceError;
   onRetry: () => void;
 }) {
-  const isWorkspaceIssue =
-    error.kind === "unauthorized" ||
-    error.kind === "forbidden";
-
   return (
-    <div className="px-5 py-10 sm:px-8 sm:py-14">
-      <div className="mx-auto max-w-3xl overflow-hidden rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-blue-50 shadow-sm dark:border-amber-900 dark:from-amber-950 dark:via-slate-900 dark:to-blue-950">
-        <div className="grid gap-0 lg:grid-cols-[1fr_240px]">
-          <div className="p-6 sm:p-8">
-            <div className="flex items-start gap-4">
-              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-200">
-                <WarningIcon />
-              </span>
+    <div className="px-5 py-12">
+      <div className="mx-auto max-w-xl rounded-2xl border border-amber-200 bg-amber-50/60 p-6 text-center dark:border-amber-900/50 dark:bg-amber-950/20">
+        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
+          <WarningIcon />
+        </span>
 
-              <div>
-                <span className="inline-flex rounded-full bg-amber-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-amber-700 dark:bg-amber-900 dark:text-amber-200">
-                  Frontend ready
-                </span>
+        <h3 className="mt-4 text-sm font-semibold text-slate-900 dark:text-white">
+          {error.title}
+        </h3>
 
-                <h3 className="mt-4 text-xl font-bold text-slate-950 dark:text-white">
-                  {error.title}
-                </h3>
+        <p className="mt-2 text-[11px] leading-5 text-slate-600 dark:text-slate-400">
+          {error.message}
+        </p>
 
-                <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">
-                  {error.message}
-                </p>
+        <button
+          type="button"
+          onClick={
+            onRetry
+          }
+          className="mt-5 inline-flex h-9 items-center gap-2 rounded-xl bg-slate-950 px-4 text-[11px] font-semibold text-white dark:bg-blue-600"
+        >
+          <RefreshIcon
+            spinning={
+              false
+            }
+          />
 
-                <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                  <button
-                    type="button"
-                    onClick={onRetry}
-                    className="flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-500"
-                  >
-                    <RefreshIcon spinning={false} />
+          Retry
+        </button>
 
-                    Retry Connection
-                  </button>
+        {error.technicalMessage && (
+          <details className="mt-5 rounded-xl border border-slate-200 bg-white p-3 text-left dark:border-slate-700 dark:bg-slate-900">
+            <summary className="cursor-pointer text-[10px] font-semibold text-slate-500">
+              Technical details
+            </summary>
 
-                  <a
-                    href="/dashboard"
-                    className="flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-                  >
-                    Return to Dashboard
-                  </a>
-                </div>
-
-                {error.technicalMessage && (
-                  <details className="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4 text-left dark:border-slate-700 dark:bg-slate-900/60">
-                    <summary className="cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
-                      Technical details
-                    </summary>
-
-                    <p className="mt-3 break-words font-mono text-[11px] leading-5 text-slate-500 dark:text-slate-400">
-                      {error.technicalMessage}
-                    </p>
-                  </details>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="border-t border-amber-200 bg-slate-950 p-6 text-white dark:border-amber-900 lg:border-l lg:border-t-0">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-300">
-              Status
+            <p className="mt-2 break-words font-mono text-[10px] leading-5 text-slate-500 dark:text-slate-400">
+              {
+                error.technicalMessage
+              }
             </p>
-
-            <div className="mt-5 space-y-4">
-              <ServiceStatusRow
-                label="Frontend interface"
-                status="Ready"
-                ready
-              />
-
-              <ServiceStatusRow
-                label="Responsive design"
-                status="Ready"
-                ready
-              />
-
-              <ServiceStatusRow
-                label="API connection"
-                status="Waiting"
-              />
-
-              <ServiceStatusRow
-                label="Workspace session"
-                status={
-                  isWorkspaceIssue
-                    ? "Required"
-                    : "Checking"
-                }
-              />
-            </div>
-
-            <p className="mt-6 text-xs leading-5 text-slate-400">
-              No backend authentication or workspace
-              logic was changed by this frontend
-              update.
-            </p>
-          </div>
-        </div>
+          </details>
+        )}
       </div>
-    </div>
-  );
-}
-
-function ServiceStatusRow({
-  label,
-  status,
-  ready = false,
-}: {
-  label: string;
-  status: string;
-  ready?: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="text-xs text-slate-400">
-        {label}
-      </span>
-
-      <span
-        className={`flex items-center gap-2 text-xs font-bold ${
-          ready
-            ? "text-emerald-300"
-            : "text-amber-300"
-        }`}
-      >
-        <span
-          className={`h-2 w-2 rounded-full ${
-            ready
-              ? "bg-emerald-400"
-              : "bg-amber-400"
-          }`}
-        />
-
-        {status}
-      </span>
     </div>
   );
 }
@@ -2113,40 +2725,42 @@ function EmptyState({
   onAdd: () => void;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-      <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+    <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
+      <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-400 dark:bg-slate-800">
         <MessageIcon />
       </span>
 
-      <h3 className="mt-5 text-lg font-bold text-slate-950">
+      <h3 className="mt-4 text-sm font-semibold text-slate-900 dark:text-white">
         {hasFilters
           ? "No matching feedback"
           : "No feedback available"}
       </h3>
 
-      <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
+      <p className="mt-2 max-w-md text-[11px] leading-5 text-slate-500 dark:text-slate-400">
         {hasFilters
           ? "Try changing or clearing the active filters."
-          : "Add your first customer feedback entry to start the analysis."}
+          : "Add customer feedback to start building the workspace inbox."}
       </p>
 
-      <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+      <div className="mt-5 flex gap-2">
         {hasFilters && (
           <button
             type="button"
-            onClick={onClear}
-            className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100"
+            onClick={
+              onClear
+            }
+            className="h-9 rounded-xl border border-slate-200 px-4 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-300"
           >
-            Clear Filters
+            Clear filters
           </button>
         )}
 
         <button
           type="button"
           onClick={onAdd}
-          className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-700"
+          className="h-9 rounded-xl bg-blue-600 px-4 text-[11px] font-semibold text-white"
         >
-          Add Feedback
+          Add feedback
         </button>
       </div>
     </div>
@@ -2169,92 +2783,114 @@ function FeedbackDetailModal({
         className="absolute inset-0"
       />
 
-      <article className="relative z-10 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-gradient-to-r from-blue-50 to-violet-50 p-6">
-          <div className="flex items-center gap-4">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-800 to-slate-950 text-sm font-bold text-white">
-              {getInitials(item.customerName)}
+      <article className="relative z-10 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5 dark:border-slate-800">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              {getInitials(
+                item.customerName,
+              )}
             </span>
 
             <div>
-              <h3 className="text-lg font-bold text-slate-950">
+              <h3 className="text-sm font-semibold text-slate-950 dark:text-white">
                 {item.customerName ||
                   "Anonymous Customer"}
               </h3>
 
-              <p className="mt-1 text-xs text-slate-500">
-                {item.id} · {item.channel}
+              <p className="mt-1 text-[10px] text-slate-400">
+                {item.channel} ·{" "}
+                {formatDate(
+                  item.createdAt,
+                )}
               </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close modal"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-100"
-          >
-            ×
-          </button>
+          <CloseButton
+            label="Close feedback details"
+            onClick={
+              onClose
+            }
+          />
         </div>
 
-        <div className="space-y-6 p-6">
+        <div className="space-y-5 p-5">
           <div className="flex flex-wrap gap-2">
             <span
-              className={`rounded-full border px-3 py-1 text-xs font-bold ${getSentimentStyle(
+              className={`rounded-full border px-2.5 py-1 text-[9px] font-semibold ${getSentimentStyle(
                 item.sentiment,
               )}`}
             >
-              {formatLabel(item.sentiment)}
+              {formatSentiment(
+                item.sentiment,
+              )}
             </span>
 
             <span
-              className={`rounded-full border px-3 py-1 text-xs font-bold ${getStatusStyle(
+              className={`rounded-full border px-2.5 py-1 text-[9px] font-semibold ${getStatusStyle(
                 item.status,
               )}`}
             >
-              {formatLabel(item.status)}
+              {formatLabel(
+                item.status,
+              )}
             </span>
           </div>
 
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-              Feedback message
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+              Feedback
             </p>
 
-            <p className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-5 text-sm leading-7 text-slate-700">
+            <p className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs leading-6 text-slate-700 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-300">
               {item.content}
             </p>
           </div>
 
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-              Detected themes
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+              Themes
             </p>
 
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-2 flex flex-wrap gap-2">
               {item.themes &&
-              item.themes.length > 0 ? (
-                item.themes.map((themeItem) => (
-                  <span
-                    key={themeItem.theme.name}
-                    className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700"
-                  >
-                    {themeItem.theme.name}
-                  </span>
-                ))
+              item.themes.length >
+                0 ? (
+                item.themes.map(
+                  (
+                    themeItem,
+                  ) => (
+                    <span
+                      key={
+                        themeItem
+                          .theme
+                          .name
+                      }
+                      className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700 dark:bg-blue-950/30 dark:text-blue-300"
+                    >
+                      {
+                        themeItem
+                          .theme
+                          .name
+                      }
+                    </span>
+                  ),
+                )
               ) : (
-                <span className="text-sm text-slate-500">
-                  No themes detected.
+                <span className="text-[11px] text-slate-400">
+                  No linked themes
                 </span>
               )}
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2">
             <DetailCard
               label="Channel"
-              value={item.channel}
+              value={
+                item.channel
+              }
             />
 
             <DetailCard
@@ -2280,12 +2916,12 @@ function DetailCard({
   value: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-      <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/40">
+      <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-400">
         {label}
       </p>
 
-      <p className="mt-2 text-sm font-semibold text-slate-800">
+      <p className="mt-2 text-xs font-semibold text-slate-800 dark:text-slate-200">
         {value}
       </p>
     </div>
@@ -2298,15 +2934,34 @@ function TableHeading({
   children: ReactNode;
 }) {
   return (
-    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-slate-500">
+    <th className="whitespace-nowrap px-5 py-3.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-400">
       {children}
     </th>
   );
 }
 
+function CloseButton({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700 dark:border-slate-700 dark:hover:bg-slate-800 dark:hover:text-white"
+    >
+      ×
+    </button>
+  );
+}
+
 function LoadingSpinner() {
   return (
-    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+    <span className="h-4 w-4 animate-spin rounded-full border-2 border-current/30 border-t-current" />
   );
 }
 
@@ -2317,10 +2972,14 @@ function SearchIcon() {
       fill="none"
       stroke="currentColor"
       strokeWidth="1.8"
-      className="h-5 w-5"
+      className="h-4 w-4"
       aria-hidden="true"
     >
-      <circle cx="11" cy="11" r="7" />
+      <circle
+        cx="11"
+        cy="11"
+        r="7"
+      />
 
       <path
         strokeLinecap="round"
@@ -2342,7 +3001,9 @@ function RefreshIcon({
       stroke="currentColor"
       strokeWidth="1.8"
       className={`h-4 w-4 ${
-        spinning ? "animate-spin" : ""
+        spinning
+          ? "animate-spin"
+          : ""
       }`}
       aria-hidden="true"
     >
@@ -2368,7 +3029,7 @@ function UploadIcon() {
       fill="none"
       stroke="currentColor"
       strokeWidth="1.8"
-      className="h-5 w-5"
+      className="h-4 w-4"
       aria-hidden="true"
     >
       <path
@@ -2379,7 +3040,6 @@ function UploadIcon() {
 
       <path
         strokeLinecap="round"
-        strokeLinejoin="round"
         d="M5 14v5h14v-5"
       />
     </svg>
@@ -2398,7 +3058,6 @@ function DownloadIcon() {
     >
       <path
         strokeLinecap="round"
-        strokeLinejoin="round"
         d="M12 4v12M7 11l5 5 5-5M5 20h14"
       />
     </svg>
@@ -2412,7 +3071,7 @@ function PlusIcon() {
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
-      className="h-5 w-5"
+      className="h-4 w-4"
       aria-hidden="true"
     >
       <path
@@ -2435,7 +3094,6 @@ function ArrowIcon() {
     >
       <path
         strokeLinecap="round"
-        strokeLinejoin="round"
         d="M5 12h14M14 7l5 5-5 5"
       />
     </svg>
@@ -2449,7 +3107,7 @@ function CsvIcon() {
       fill="none"
       stroke="currentColor"
       strokeWidth="1.8"
-      className="h-7 w-7"
+      className="h-5 w-5"
       aria-hidden="true"
     >
       <path
@@ -2473,7 +3131,7 @@ function MessageIcon() {
       fill="none"
       stroke="currentColor"
       strokeWidth="1.8"
-      className="h-6 w-6"
+      className="h-5 w-5"
       aria-hidden="true"
     >
       <path
@@ -2497,7 +3155,7 @@ function DatabaseIcon() {
       fill="none"
       stroke="currentColor"
       strokeWidth="1.8"
-      className="h-5 w-5"
+      className="h-4 w-4"
       aria-hidden="true"
     >
       <ellipse
@@ -2523,7 +3181,7 @@ function PositiveIcon() {
       fill="none"
       stroke="currentColor"
       strokeWidth="1.8"
-      className="h-5 w-5"
+      className="h-4 w-4"
       aria-hidden="true"
     >
       <circle
@@ -2547,7 +3205,7 @@ function WarningIcon() {
       fill="none"
       stroke="currentColor"
       strokeWidth="1.8"
-      className="h-5 w-5"
+      className="h-4 w-4"
       aria-hidden="true"
     >
       <path
@@ -2564,27 +3222,20 @@ function WarningIcon() {
   );
 }
 
-function NewIcon() {
+function AnalysisIcon() {
   return (
     <svg
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
       strokeWidth="1.8"
-      className="h-5 w-5"
+      className="h-4 w-4"
       aria-hidden="true"
     >
-      <rect
-        x="4"
-        y="4"
-        width="16"
-        height="16"
-        rx="4"
-      />
-
       <path
         strokeLinecap="round"
-        d="M12 8v8M8 12h8"
+        strokeLinejoin="round"
+        d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 18l-1.8-6.2L5 10l5.2-1.8L12 3Z"
       />
     </svg>
   );

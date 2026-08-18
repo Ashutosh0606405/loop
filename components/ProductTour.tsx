@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+
 import {
   useEffect,
   useState,
@@ -26,19 +27,19 @@ const tourSteps: TourStep[] = [
     id: "welcome",
     title: "Welcome to Project LOOP",
     description:
-      "LOOP transforms customer feedback into sentiment, themes, trends and actionable insights.",
+      "LOOP brings customer feedback, sentiment, themes and evidence-backed insights into one workspace.",
     helperText:
-      "This short tour introduces the important areas of your workspace.",
+      "This short tour introduces the main frontend areas currently available in your LOOP workspace.",
     icon: <SparklesIcon />,
     badge: "Welcome",
   },
   {
     id: "dashboard",
-    title: "Understand Feedback at a Glance",
+    title: "Understand Workspace Feedback",
     description:
-      "The dashboard shows feedback volume, positive sentiment, open issues, AI confidence and recent activity.",
+      "The dashboard summarizes real workspace feedback activity, classification coverage, sentiment, workflow status, themes and sources.",
     helperText:
-      "Use dashboard filters to compare feedback performance across different time periods.",
+      "Use the 7-day, 30-day and 90-day controls to review feedback across different periods.",
     href: "/dashboard",
     buttonLabel: "Open Dashboard",
     icon: <DashboardIcon />,
@@ -48,9 +49,9 @@ const tourSteps: TourStep[] = [
     id: "feedback",
     title: "Manage Customer Feedback",
     description:
-      "Add individual feedback, import CSV records, search feedback and filter by sentiment, channel or status.",
+      "Add individual feedback, import CSV records, search feedback and filter by sentiment, channel or workflow status.",
     helperText:
-      "Feedback data is classified by LOOP AI after backend processing is connected.",
+      "Feedback that has not been classified yet is shown honestly as Unclassified rather than being assigned a placeholder sentiment.",
     href: "/feedback",
     buttonLabel: "Open Feedback",
     icon: <FeedbackIcon />,
@@ -58,23 +59,23 @@ const tourSteps: TourStep[] = [
   },
   {
     id: "ask-loop",
-    title: "Ask Questions Using AI",
+    title: "Ask Questions with Evidence",
     description:
-      "Ask LOOP helps users understand customer concerns, sentiment changes and recurring themes using natural-language questions.",
+      "Ask LOOP sends natural-language questions through the application API and displays answers with supporting feedback citations when available.",
     helperText:
-      "Try questions such as: What are the main payment complaints this month?",
+      "Grounded answers should be based on retrieved workspace feedback rather than invented customer comments.",
     href: "/ask-loop",
     buttonLabel: "Open Ask LOOP",
     icon: <AskIcon />,
-    badge: "AI Assistant",
+    badge: "Ask LOOP",
   },
   {
     id: "reports",
-    title: "Generate Insight Reports",
+    title: "Review Feedback Reports",
     description:
-      "Create executive summaries, sentiment reports and theme analysis for selected reporting periods.",
+      "Reports summarizes real feedback volume, classification coverage, sentiment, themes, channels and workflow data for the selected period.",
     helperText:
-      "Reports can be downloaded, exported and shared with stakeholders.",
+      "The current report page can export the selected feedback records as CSV without adding fake report metrics.",
     href: "/reports",
     buttonLabel: "Open Reports",
     icon: <ReportsIcon />,
@@ -82,61 +83,85 @@ const tourSteps: TourStep[] = [
   },
   {
     id: "productivity",
-    title: "Work Faster with Quick Actions",
+    title: "Use Workspace Shortcuts",
     description:
-      "Use the command palette, notification centre and theme selector from the LOOP header.",
+      "Use the command palette, notification centre and appearance controls from the LOOP header.",
     helperText:
-      "Press Ctrl + K anywhere inside LOOP to search pages, actions and appearance settings.",
+      "Press Ctrl + K anywhere inside the workspace to quickly open pages, account areas and theme controls.",
     icon: <CommandIcon />,
-    badge: "Productivity",
+    badge: "Workspace",
   },
   {
     id: "complete",
-    title: "Your Workspace is Ready",
+    title: "Workspace Tour Complete",
     description:
-      "You now know the main features available in Project LOOP.",
+      "You now know the main frontend areas currently available in Project LOOP.",
     helperText:
-      "You can restart this tour later from the help button in the header.",
+      "You can restart this tour at any time using the help control in the workspace header.",
     icon: <CheckIcon />,
-    badge: "Completed",
+    badge: "Complete",
   },
 ];
 
 export default function ProductTour() {
   const router = useRouter();
 
-  const [isOpen, setIsOpen] = useState(false);
-  const [currentStep, setCurrentStep] =
-    useState(0);
-  const [mounted, setMounted] =
-    useState(false);
+  const [
+    isOpen,
+    setIsOpen,
+  ] = useState(false);
 
-  const step = tourSteps[currentStep];
+  const [
+    currentStep,
+    setCurrentStep,
+  ] = useState(0);
+
+  const step =
+    tourSteps[currentStep];
 
   const progress =
-    ((currentStep + 1) / tourSteps.length) *
+    ((currentStep + 1) /
+      tourSteps.length) *
     100;
 
-  const isFirstStep = currentStep === 0;
+  const isFirstStep =
+    currentStep === 0;
 
   const isLastStep =
-    currentStep === tourSteps.length - 1;
+    currentStep ===
+    tourSteps.length - 1;
 
   useEffect(() => {
-    setMounted(true);
+    let timer:
+      | number
+      | undefined;
 
-    const completed =
-      window.localStorage.getItem(
-        tourStorageKey,
-      );
+    try {
+      const completed =
+        window.localStorage.getItem(
+          tourStorageKey,
+        );
 
-    let timer: number | undefined;
+      if (
+        completed !== "true"
+      ) {
+        timer =
+          window.setTimeout(
+            () => {
+              setCurrentStep(
+                0,
+              );
 
-    if (completed !== "true") {
-      timer = window.setTimeout(() => {
-        setCurrentStep(0);
-        setIsOpen(true);
-      }, 900);
+              setIsOpen(
+                true,
+              );
+            },
+            900,
+          );
+      }
+    } catch {
+      // Local storage may be unavailable in
+      // restricted browser environments.
     }
 
     function restartTour() {
@@ -150,8 +175,13 @@ export default function ProductTour() {
     );
 
     return () => {
-      if (timer) {
-        window.clearTimeout(timer);
+      if (
+        timer !==
+        undefined
+      ) {
+        window.clearTimeout(
+          timer,
+        );
       }
 
       window.removeEventListener(
@@ -167,34 +197,56 @@ export default function ProductTour() {
     }
 
     const previousOverflow =
-      document.body.style.overflow;
+      document.body.style
+        .overflow;
 
-    document.body.style.overflow = "hidden";
+    document.body.style.overflow =
+      "hidden";
 
     function handleKeyDown(
       event: KeyboardEvent,
     ) {
-      if (event.key === "ArrowRight") {
+      if (
+        event.key ===
+        "ArrowRight"
+      ) {
         event.preventDefault();
 
-        setCurrentStep((previous) =>
-          Math.min(
-            previous + 1,
-            tourSteps.length - 1,
-          ),
+        setCurrentStep(
+          (previous) =>
+            Math.min(
+              previous + 1,
+              tourSteps.length -
+                1,
+            ),
         );
+
+        return;
       }
 
-      if (event.key === "ArrowLeft") {
+      if (
+        event.key ===
+        "ArrowLeft"
+      ) {
         event.preventDefault();
 
-        setCurrentStep((previous) =>
-          Math.max(previous - 1, 0),
+        setCurrentStep(
+          (previous) =>
+            Math.max(
+              previous - 1,
+              0,
+            ),
         );
+
+        return;
       }
 
-      if (event.key === "Escape") {
+      if (
+        event.key ===
+        "Escape"
+      ) {
         event.preventDefault();
+
         setIsOpen(false);
       }
     }
@@ -221,34 +273,46 @@ export default function ProductTour() {
       return;
     }
 
-    setCurrentStep((previous) =>
-      Math.min(
-        previous + 1,
-        tourSteps.length - 1,
-      ),
+    setCurrentStep(
+      (previous) =>
+        Math.min(
+          previous + 1,
+          tourSteps.length -
+            1,
+        ),
     );
   }
 
   function handlePrevious() {
-    setCurrentStep((previous) =>
-      Math.max(previous - 1, 0),
+    setCurrentStep(
+      (previous) =>
+        Math.max(
+          previous - 1,
+          0,
+        ),
     );
   }
 
+  function markTourComplete() {
+    try {
+      window.localStorage.setItem(
+        tourStorageKey,
+        "true",
+      );
+    } catch {
+      // Keep the tour usable even if local
+      // storage is unavailable.
+    }
+  }
+
   function skipTour() {
-    window.localStorage.setItem(
-      tourStorageKey,
-      "true",
-    );
+    markTourComplete();
 
     setIsOpen(false);
   }
 
   function finishTour() {
-    window.localStorage.setItem(
-      tourStorageKey,
-      "true",
-    );
+    markTourComplete();
 
     setIsOpen(false);
   }
@@ -258,120 +322,154 @@ export default function ProductTour() {
       return;
     }
 
-    router.push(step.href);
+    setIsOpen(false);
+
+    router.push(
+      step.href,
+    );
   }
 
-  if (!mounted || !isOpen) {
+  if (!isOpen) {
     return null;
   }
 
   return (
     <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
-      {/* Background */}
-      <div className="absolute inset-0 bg-slate-950/75 backdrop-blur-md" />
+      <button
+        type="button"
+        aria-label="Close product tour"
+        onClick={
+          skipTour
+        }
+        className="absolute inset-0 bg-slate-950/75 backdrop-blur-sm"
+      />
 
-      {/* Decorative Glow */}
-      <div className="pointer-events-none absolute left-1/4 top-1/4 h-72 w-72 rounded-full bg-blue-600/20 blur-3xl" />
-
-      <div className="pointer-events-none absolute bottom-1/4 right-1/4 h-72 w-72 rounded-full bg-violet-600/20 blur-3xl" />
-
-      {/* Tour Card */}
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby="product-tour-title"
-        className="relative z-10 w-full max-w-2xl overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+        className="relative z-10 w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
       >
-        {/* Progress */}
-        <div className="h-1.5 bg-slate-100 dark:bg-slate-800">
+        <div className="h-1 bg-slate-100 dark:bg-slate-800">
           <div
-            className="h-full bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 transition-all duration-500"
+            className="h-full bg-blue-600 transition-[width] duration-300"
             style={{
               width: `${progress}%`,
             }}
           />
         </div>
 
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-          <div className="flex items-center gap-3">
-            <span className="rounded-full bg-blue-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+        <header className="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
               {step.badge}
             </span>
 
-            <span className="text-xs font-semibold text-slate-400">
-              Step {currentStep + 1} of{" "}
-              {tourSteps.length}
+            <span className="text-[10px] font-medium text-slate-400">
+              Step{" "}
+              {currentStep +
+                1}{" "}
+              of{" "}
+              {
+                tourSteps.length
+              }
             </span>
           </div>
 
           <button
             type="button"
-            onClick={skipTour}
-            className="text-xs font-bold text-slate-400 transition hover:text-slate-700 dark:hover:text-slate-200"
+            onClick={
+              skipTour
+            }
+            className="shrink-0 text-[10px] font-semibold text-slate-400 transition hover:text-slate-700 dark:hover:text-slate-200"
           >
             Skip tour
           </button>
-        </div>
+        </header>
 
-        {/* Main Content */}
-        <div className="p-6 sm:p-8">
-          <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-blue-600 to-violet-600 text-white shadow-xl shadow-blue-200 dark:shadow-none">
+        <div className="p-6 sm:p-7">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white">
             {step.icon}
           </div>
 
           <h2
             id="product-tour-title"
-            className="mt-6 text-2xl font-black tracking-tight text-slate-950 dark:text-white sm:text-3xl"
+            className="mt-5 text-xl font-semibold tracking-tight text-slate-950 dark:text-white sm:text-2xl"
           >
             {step.title}
           </h2>
 
-          <p className="mt-4 text-base leading-7 text-slate-600 dark:text-slate-300">
-            {step.description}
+          <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+            {
+              step.description
+            }
           </p>
 
-          <div className="mt-6 flex items-start gap-3 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 to-violet-50 p-4 dark:border-blue-900 dark:from-blue-950 dark:to-violet-950">
-            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+          <div className="mt-5 flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-300">
               <InfoIcon />
             </span>
 
-            <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
-              {step.helperText}
+            <p className="text-[11px] leading-5 text-slate-600 dark:text-slate-300">
+              {
+                step.helperText
+              }
             </p>
           </div>
 
           {step.href && (
             <button
               type="button"
-              onClick={openStepPage}
-              className="mt-5 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-blue-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:text-blue-300 dark:hover:bg-slate-700"
+              onClick={
+                openStepPage
+              }
+              className="mt-4 inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-[11px] font-semibold text-blue-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-blue-300 dark:hover:bg-slate-800"
             >
-              {step.buttonLabel}
+              {
+                step.buttonLabel
+              }
 
-              <span aria-hidden="true">↗</span>
+              <span
+                aria-hidden="true"
+              >
+                ↗
+              </span>
             </button>
           )}
 
-          {/* Step Indicators */}
-          <div className="mt-8 flex flex-wrap gap-2">
+          <div className="mt-7 flex flex-wrap gap-2">
             {tourSteps.map(
-              (tourStep, index) => (
+              (
+                tourStep,
+                index,
+              ) => (
                 <button
-                  key={tourStep.id}
+                  key={
+                    tourStep.id
+                  }
                   type="button"
                   onClick={() =>
-                    setCurrentStep(index)
+                    setCurrentStep(
+                      index,
+                    )
                   }
                   aria-label={`Open tour step ${
                     index + 1
                   }`}
-                  className={`h-2.5 rounded-full transition-all ${
-                    index === currentStep
-                      ? "w-9 bg-blue-600"
-                      : index < currentStep
-                        ? "w-2.5 bg-emerald-500"
-                        : "w-2.5 bg-slate-200 dark:bg-slate-700"
+                  aria-current={
+                    index ===
+                    currentStep
+                      ? "step"
+                      : undefined
+                  }
+                  className={`h-2 rounded-full transition-all ${
+                    index ===
+                    currentStep
+                      ? "w-8 bg-blue-600"
+                      : index <
+                          currentStep
+                        ? "w-2 bg-slate-500"
+                        : "w-2 bg-slate-200 dark:bg-slate-700"
                   }`}
                 />
               ),
@@ -379,39 +477,38 @@ export default function ProductTour() {
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="flex flex-col-reverse gap-3 border-t border-slate-100 bg-slate-50 px-6 py-5 dark:border-slate-800 dark:bg-slate-950 sm:flex-row sm:items-center sm:justify-between">
+        <footer className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-950 sm:flex-row sm:items-center sm:justify-between">
           <button
             type="button"
-            onClick={handlePrevious}
-            disabled={isFirstStep}
-            className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            onClick={
+              handlePrevious
+            }
+            disabled={
+              isFirstStep
+            }
+            className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             Previous
           </button>
 
           <div className="flex items-center justify-end gap-3">
-            <span className="hidden text-[10px] font-semibold text-slate-400 sm:block">
-              Use ← → arrow keys
+            <span className="hidden text-[9px] font-medium text-slate-400 sm:block">
+              ← → keyboard
             </span>
 
             <button
               type="button"
-              onClick={handleNext}
-              className="flex min-w-32 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:shadow-xl dark:shadow-none"
+              onClick={
+                handleNext
+              }
+              className="h-10 min-w-28 rounded-xl bg-blue-600 px-5 text-xs font-semibold text-white transition hover:bg-blue-500"
             >
               {isLastStep
-                ? "Finish Tour"
-                : "Next Step"}
-
-              {!isLastStep && (
-                <span aria-hidden="true">
-                  →
-                </span>
-              )}
+                ? "Finish"
+                : "Next"}
             </button>
           </div>
-        </div>
+        </footer>
       </section>
     </div>
   );
@@ -428,7 +525,7 @@ function IconBase({
       fill="none"
       stroke="currentColor"
       strokeWidth="1.8"
-      className="h-7 w-7"
+      className="h-5 w-5"
       aria-hidden="true"
     >
       {children}
@@ -512,7 +609,11 @@ function FeedbackIcon() {
 function AskIcon() {
   return (
     <IconBase>
-      <circle cx="12" cy="12" r="9" />
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+      />
 
       <path
         strokeLinecap="round"
@@ -555,7 +656,11 @@ function CommandIcon() {
 function CheckIcon() {
   return (
     <IconBase>
-      <circle cx="12" cy="12" r="9" />
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+      />
 
       <path
         strokeLinecap="round"
@@ -576,7 +681,11 @@ function InfoIcon() {
       className="h-4 w-4"
       aria-hidden="true"
     >
-      <circle cx="12" cy="12" r="9" />
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+      />
 
       <path
         strokeLinecap="round"

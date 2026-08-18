@@ -1,11 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+
 import {
   useEffect,
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react";
 
@@ -37,12 +39,13 @@ const commandItems: CommandItem[] = [
     id: "dashboard",
     title: "Open Dashboard",
     description:
-      "View feedback metrics and AI insights.",
+      "View workspace feedback metrics and trends.",
     keywords: [
       "dashboard",
       "home",
       "metrics",
       "overview",
+      "trends",
     ],
     group: "Navigation",
     href: "/dashboard",
@@ -53,12 +56,13 @@ const commandItems: CommandItem[] = [
     id: "feedback",
     title: "Open Feedback",
     description:
-      "Review and manage customer feedback.",
+      "Search and review customer feedback.",
     keywords: [
       "feedback",
       "customers",
       "reviews",
       "comments",
+      "inbox",
     ],
     group: "Navigation",
     href: "/feedback",
@@ -67,9 +71,9 @@ const commandItems: CommandItem[] = [
   },
   {
     id: "ask-loop",
-    title: "Ask LOOP",
+    title: "Open Ask LOOP",
     description:
-      "Ask questions about customer feedback.",
+      "Ask questions using workspace feedback.",
     keywords: [
       "ask",
       "loop",
@@ -86,12 +90,12 @@ const commandItems: CommandItem[] = [
     id: "reports",
     title: "Open Reports",
     description:
-      "Generate and review analytics reports.",
+      "Review feedback trends and report data.",
     keywords: [
       "reports",
       "analytics",
       "export",
-      "generate",
+      "trends",
     ],
     group: "Navigation",
     href: "/reports",
@@ -100,9 +104,9 @@ const commandItems: CommandItem[] = [
   },
   {
     id: "add-feedback",
-    title: "Add New Feedback",
+    title: "Add Feedback",
     description:
-      "Open the feedback workspace.",
+      "Open the feedback inbox to add a new record.",
     keywords: [
       "add",
       "new",
@@ -114,30 +118,30 @@ const commandItems: CommandItem[] = [
     icon: <AddIcon />,
   },
   {
-    id: "generate-report",
-    title: "Generate Customer Report",
+    id: "export-report",
+    title: "Export Report Data",
     description:
-      "Open report generation tools.",
+      "Open Reports to export workspace feedback data.",
     keywords: [
-      "generate",
       "report",
+      "export",
+      "csv",
       "download",
-      "customer",
     ],
     group: "Workspace",
     href: "/reports",
-    icon: <GenerateIcon />,
+    icon: <ReportsIcon />,
   },
   {
     id: "profile",
     title: "View Profile",
     description:
-      "Open your LOOP contributor profile.",
+      "View your authenticated LOOP account.",
     keywords: [
       "profile",
       "user",
-      "personal",
       "account",
+      "identity",
     ],
     group: "Account",
     href: "/profile",
@@ -145,14 +149,14 @@ const commandItems: CommandItem[] = [
   },
   {
     id: "settings",
-    title: "Account Settings",
+    title: "Open Settings",
     description:
-      "Manage account and notification settings.",
+      "Manage account, appearance and security settings.",
     keywords: [
       "settings",
       "account",
       "security",
-      "notifications",
+      "appearance",
     ],
     group: "Account",
     href: "/settings",
@@ -163,7 +167,7 @@ const commandItems: CommandItem[] = [
     id: "light-theme",
     title: "Use Light Mode",
     description:
-      "Switch LOOP to the bright appearance.",
+      "Switch LOOP to the light appearance.",
     keywords: [
       "light",
       "bright",
@@ -215,82 +219,135 @@ const groupOrder: CommandGroup[] = [
 
 export default function CommandPalette() {
   const router = useRouter();
-  const { setTheme } = useTheme();
 
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchQuery, setSearchQuery] =
-    useState("");
-  const [activeIndex, setActiveIndex] =
-    useState(0);
+  const {
+    setTheme,
+  } = useTheme();
+
+  const [
+    isOpen,
+    setIsOpen,
+  ] = useState(false);
+
+  const [
+    searchQuery,
+    setSearchQuery,
+  ] = useState("");
+
+  const [
+    activeIndex,
+    setActiveIndex,
+  ] = useState(0);
 
   const inputRef =
-    useRef<HTMLInputElement | null>(null);
+    useRef<HTMLInputElement | null>(
+      null,
+    );
 
-  const filteredCommands = useMemo(() => {
-    const normalizedQuery = searchQuery
-      .trim()
-      .toLowerCase();
+  const filteredCommands =
+    useMemo(() => {
+      const normalizedQuery =
+        searchQuery
+          .trim()
+          .toLowerCase();
 
-    if (!normalizedQuery) {
-      return commandItems;
-    }
+      if (!normalizedQuery) {
+        return commandItems;
+      }
 
-    return commandItems.filter((command) => {
-      const searchableText = [
-        command.title,
-        command.description,
-        command.group,
-        ...command.keywords,
-      ]
-        .join(" ")
-        .toLowerCase();
+      return commandItems.filter(
+        (command) => {
+          const searchableText =
+            [
+              command.title,
+              command.description,
+              command.group,
+              ...command.keywords,
+            ]
+              .join(" ")
+              .toLowerCase();
 
-      return searchableText.includes(
-        normalizedQuery,
+          return searchableText.includes(
+            normalizedQuery,
+          );
+        },
       );
-    });
-  }, [searchQuery]);
+    }, [searchQuery]);
 
-  const groupedCommands = useMemo(() => {
-    return groupOrder
-      .map((group) => ({
-        group,
-        items: filteredCommands.filter(
-          (command) =>
-            command.group === group,
-        ),
-      }))
-      .filter(
-        ({ items }) => items.length > 0,
-      );
-  }, [filteredCommands]);
+  const groupedCommands =
+    useMemo(() => {
+      return groupOrder
+        .map((group) => ({
+          group,
+          items:
+            filteredCommands.filter(
+              (command) =>
+                command.group ===
+                group,
+            ),
+        }))
+        .filter(
+          ({ items }) =>
+            items.length > 0,
+        );
+    }, [filteredCommands]);
+
+  function openPalette() {
+    setSearchQuery("");
+    setActiveIndex(0);
+    setIsOpen(true);
+  }
+
+  function closePalette() {
+    setSearchQuery("");
+    setActiveIndex(0);
+    setIsOpen(false);
+  }
 
   useEffect(() => {
     function handleShortcut(
       event: KeyboardEvent,
     ) {
       const pressedCommandShortcut =
-        (event.ctrlKey || event.metaKey) &&
-        event.key.toLowerCase() === "k";
+        (event.ctrlKey ||
+          event.metaKey) &&
+        event.key.toLowerCase() ===
+          "k";
 
-      if (pressedCommandShortcut) {
+      if (
+        pressedCommandShortcut
+      ) {
         event.preventDefault();
         event.stopPropagation();
 
-        setIsOpen((previous) => !previous);
+        if (isOpen) {
+          setSearchQuery("");
+          setActiveIndex(0);
+          setIsOpen(false);
+        } else {
+          setSearchQuery("");
+          setActiveIndex(0);
+          setIsOpen(true);
+        }
+
+        return;
       }
 
       if (
-        event.key === "Escape" &&
+        event.key ===
+          "Escape" &&
         isOpen
       ) {
         event.preventDefault();
+
+        setSearchQuery("");
+        setActiveIndex(0);
         setIsOpen(false);
       }
     }
 
     function handleOpenEvent() {
-      setIsOpen(true);
+      openPalette();
     }
 
     window.addEventListener(
@@ -320,78 +377,117 @@ export default function CommandPalette() {
 
   useEffect(() => {
     if (!isOpen) {
-      setSearchQuery("");
-      setActiveIndex(0);
       return;
     }
 
-    document.body.style.overflow = "hidden";
+    const previousOverflow =
+      document.body.style
+        .overflow;
 
-    window.setTimeout(() => {
-      inputRef.current?.focus();
-    }, 50);
+    document.body.style.overflow =
+      "hidden";
+
+    const focusTimer =
+      window.setTimeout(
+        () => {
+          inputRef.current?.focus();
+        },
+        50,
+      );
 
     return () => {
-      document.body.style.overflow = "";
+      window.clearTimeout(
+        focusTimer,
+      );
+
+      document.body.style.overflow =
+        previousOverflow;
     };
   }, [isOpen]);
-
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [searchQuery]);
 
   function runCommand(
     command: CommandItem,
   ) {
     if (command.theme) {
-      setTheme(command.theme);
+      setTheme(
+        command.theme,
+      );
     }
 
     if (command.href) {
-      router.push(command.href);
+      router.push(
+        command.href,
+      );
     }
 
-    setIsOpen(false);
+    closePalette();
+  }
+
+  function handleSearchChange(
+    value: string,
+  ) {
+    setSearchQuery(
+      value,
+    );
+
+    setActiveIndex(0);
   }
 
   function handleInputKeyDown(
-    event: React.KeyboardEvent<HTMLInputElement>,
+    event: ReactKeyboardEvent<HTMLInputElement>,
   ) {
     if (
-      event.key === "ArrowDown" &&
-      filteredCommands.length > 0
+      event.key ===
+        "ArrowDown" &&
+      filteredCommands.length >
+        0
     ) {
       event.preventDefault();
 
-      setActiveIndex((previous) =>
-        previous >=
-        filteredCommands.length - 1
-          ? 0
-          : previous + 1,
+      setActiveIndex(
+        (previous) =>
+          previous >=
+          filteredCommands.length -
+            1
+            ? 0
+            : previous + 1,
       );
+
+      return;
     }
 
     if (
-      event.key === "ArrowUp" &&
-      filteredCommands.length > 0
+      event.key ===
+        "ArrowUp" &&
+      filteredCommands.length >
+        0
     ) {
       event.preventDefault();
 
-      setActiveIndex((previous) =>
-        previous <= 0
-          ? filteredCommands.length - 1
-          : previous - 1,
+      setActiveIndex(
+        (previous) =>
+          previous <= 0
+            ? filteredCommands.length -
+              1
+            : previous - 1,
       );
+
+      return;
     }
 
     if (
-      event.key === "Enter" &&
-      filteredCommands[activeIndex]
+      event.key ===
+        "Enter" &&
+      filteredCommands[
+        activeIndex
+      ]
     ) {
       event.preventDefault();
 
       runCommand(
-        filteredCommands[activeIndex],
+        filteredCommands[
+          activeIndex
+        ],
       );
     }
   }
@@ -400,14 +496,17 @@ export default function CommandPalette() {
     return null;
   }
 
-  let commandPosition = -1;
+  let commandPosition =
+    -1;
 
   return (
     <div className="fixed inset-0 z-[200] flex items-start justify-center px-4 pt-[10vh] sm:pt-[14vh]">
       <button
         type="button"
         aria-label="Close command palette"
-        onClick={() => setIsOpen(false)}
+        onClick={
+          closePalette
+        }
         className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
       />
 
@@ -415,9 +514,8 @@ export default function CommandPalette() {
         role="dialog"
         aria-modal="true"
         aria-label="LOOP command palette"
-        className="relative z-10 w-full max-w-2xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+        className="relative z-10 w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
       >
-        {/* Search */}
         <div className="flex items-center gap-3 border-b border-slate-200 px-5 dark:border-slate-700">
           <span className="text-slate-400">
             <SearchIcon />
@@ -426,140 +524,175 @@ export default function CommandPalette() {
           <input
             ref={inputRef}
             type="text"
-            value={searchQuery}
-            onChange={(event) =>
-              setSearchQuery(
-                event.target.value,
+            value={
+              searchQuery
+            }
+            onChange={(
+              event,
+            ) =>
+              handleSearchChange(
+                event.target
+                  .value,
               )
             }
-            onKeyDown={handleInputKeyDown}
+            onKeyDown={
+              handleInputKeyDown
+            }
             placeholder="Search pages, actions or themes..."
-            className="min-w-0 flex-1 bg-transparent py-5 text-base font-medium text-slate-950 outline-none placeholder:text-slate-400 dark:text-white"
+            className="min-w-0 flex-1 bg-transparent py-5 text-sm font-medium text-slate-950 outline-none placeholder:text-slate-400 dark:text-white"
           />
 
           <button
             type="button"
-            onClick={() => setIsOpen(false)}
-            className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[10px] font-bold text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+            onClick={
+              closePalette
+            }
+            className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[10px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
           >
             ESC
           </button>
         </div>
 
-        {/* Command Results */}
         <div className="max-h-[440px] overflow-y-auto p-3">
-          {filteredCommands.length > 0 ? (
+          {filteredCommands.length >
+          0 ? (
             groupedCommands.map(
-              ({ group, items }) => (
+              ({
+                group,
+                items,
+              }) => (
                 <div
-                  key={group}
+                  key={
+                    group
+                  }
                   className="mb-4 last:mb-0"
                 >
-                  <p className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                  <p className="px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
                     {group}
                   </p>
 
                   <div className="space-y-1">
-                    {items.map((command) => {
-                      commandPosition += 1;
+                    {items.map(
+                      (
+                        command,
+                      ) => {
+                        commandPosition +=
+                          1;
 
-                      const currentPosition =
-                        commandPosition;
+                        const currentPosition =
+                          commandPosition;
 
-                      const isActive =
-                        currentPosition ===
-                        activeIndex;
+                        const isActive =
+                          currentPosition ===
+                          activeIndex;
 
-                      return (
-                        <button
-                          key={command.id}
-                          type="button"
-                          onMouseEnter={() =>
-                            setActiveIndex(
-                              currentPosition,
-                            )
-                          }
-                          onClick={() =>
-                            runCommand(command)
-                          }
-                          className={`flex w-full items-center gap-4 rounded-2xl px-3 py-3 text-left transition ${
-                            isActive
-                              ? "bg-gradient-to-r from-blue-50 to-violet-50 dark:from-blue-950 dark:to-violet-950"
-                              : "hover:bg-slate-50 dark:hover:bg-slate-800"
-                          }`}
-                        >
-                          <span
-                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
+                        return (
+                          <button
+                            key={
+                              command.id
+                            }
+                            type="button"
+                            onMouseEnter={() =>
+                              setActiveIndex(
+                                currentPosition,
+                              )
+                            }
+                            onClick={() =>
+                              runCommand(
+                                command,
+                              )
+                            }
+                            className={`flex w-full items-center gap-4 rounded-xl px-3 py-3 text-left transition ${
                               isActive
-                                ? "bg-blue-600 text-white shadow-lg shadow-blue-200 dark:shadow-none"
-                                : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                                ? "bg-blue-50 dark:bg-blue-950/30"
+                                : "hover:bg-slate-50 dark:hover:bg-slate-800"
                             }`}
                           >
-                            {command.icon}
-                          </span>
-
-                          <span className="min-w-0 flex-1">
-                            <span className="block text-sm font-bold text-slate-950 dark:text-white">
-                              {command.title}
-                            </span>
-
-                            <span className="mt-1 block truncate text-xs text-slate-500 dark:text-slate-400">
+                            <span
+                              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                                isActive
+                                  ? "bg-blue-600 text-white"
+                                  : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                              }`}
+                            >
                               {
-                                command.description
+                                command.icon
                               }
                             </span>
-                          </span>
 
-                          {command.shortcut && (
-                            <span className="hidden rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-400 dark:border-slate-700 dark:bg-slate-900 sm:block">
-                              {command.shortcut}
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-xs font-semibold text-slate-950 dark:text-white">
+                                {
+                                  command.title
+                                }
+                              </span>
+
+                              <span className="mt-1 block truncate text-[10px] text-slate-500 dark:text-slate-400">
+                                {
+                                  command.description
+                                }
+                              </span>
                             </span>
-                          )}
 
-                          <span
-                            className={`text-lg ${
-                              isActive
-                                ? "text-blue-600 dark:text-blue-300"
-                                : "text-slate-300 dark:text-slate-600"
-                            }`}
-                          >
-                            →
-                          </span>
-                        </button>
-                      );
-                    })}
+                            {command.shortcut && (
+                              <span className="hidden rounded-lg border border-slate-200 bg-white px-2 py-1 text-[9px] font-semibold text-slate-400 dark:border-slate-700 dark:bg-slate-900 sm:block">
+                                {
+                                  command.shortcut
+                                }
+                              </span>
+                            )}
+
+                            <span
+                              className={`text-base ${
+                                isActive
+                                  ? "text-blue-600 dark:text-blue-300"
+                                  : "text-slate-300 dark:text-slate-600"
+                              }`}
+                            >
+                              →
+                            </span>
+                          </button>
+                        );
+                      },
+                    )}
                   </div>
                 </div>
               ),
             )
           ) : (
-            <div className="flex flex-col items-center px-6 py-14 text-center">
-              <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 dark:bg-slate-800">
+            <div className="flex flex-col items-center px-6 py-12 text-center">
+              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-400 dark:bg-slate-800">
                 <SearchIcon />
               </span>
 
-              <h3 className="mt-4 font-bold text-slate-950 dark:text-white">
+              <h3 className="mt-4 text-sm font-semibold text-slate-950 dark:text-white">
                 No matching commands
               </h3>
 
-              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                Try searching for dashboard,
-                reports, profile or theme.
+              <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+                Try dashboard, feedback, reports, profile or theme.
               </p>
             </div>
           )}
         </div>
 
-        {/* Footer */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-5 py-3 dark:border-slate-700 dark:bg-slate-950">
-          <p className="text-[10px] font-semibold text-slate-400">
+          <p className="text-[10px] font-medium text-slate-400">
             LOOP Quick Actions
           </p>
 
-          <div className="flex items-center gap-3 text-[10px] font-semibold text-slate-400">
-            <span>↑ ↓ Navigate</span>
-            <span>↵ Select</span>
-            <span>ESC Close</span>
+          <div className="flex items-center gap-3 text-[9px] font-medium text-slate-400">
+            <span>
+              ↑ ↓ Navigate
+            </span>
+
+            <span>
+              ↵ Select
+            </span>
+
+            <span>
+              ESC Close
+            </span>
           </div>
         </div>
       </section>
@@ -578,7 +711,7 @@ function IconBase({
       fill="none"
       stroke="currentColor"
       strokeWidth="1.8"
-      className="h-5 w-5"
+      className="h-4 w-4"
       aria-hidden="true"
     >
       {children}
@@ -589,7 +722,12 @@ function IconBase({
 function SearchIcon() {
   return (
     <IconBase>
-      <circle cx="11" cy="11" r="7" />
+      <circle
+        cx="11"
+        cy="11"
+        r="7"
+      />
+
       <path
         strokeLinecap="round"
         d="m16 16 4 4"
@@ -608,6 +746,7 @@ function DashboardIcon() {
         height="7"
         rx="2"
       />
+
       <rect
         x="14"
         y="3"
@@ -615,6 +754,7 @@ function DashboardIcon() {
         height="7"
         rx="2"
       />
+
       <rect
         x="3"
         y="14"
@@ -622,6 +762,7 @@ function DashboardIcon() {
         height="7"
         rx="2"
       />
+
       <rect
         x="14"
         y="14"
@@ -641,6 +782,7 @@ function FeedbackIcon() {
         strokeLinejoin="round"
         d="M7 18.5 3.5 21v-5.2A8.5 8.5 0 1 1 7 18.5Z"
       />
+
       <path
         strokeLinecap="round"
         d="M8 9h8M8 13h5"
@@ -652,7 +794,12 @@ function FeedbackIcon() {
 function AskIcon() {
   return (
     <IconBase>
-      <circle cx="12" cy="12" r="9" />
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+      />
+
       <path
         strokeLinecap="round"
         d="M9.5 9a2.7 2.7 0 1 1 4.4 2.1c-1 .8-1.9 1.2-1.9 2.4M12 17h.01"
@@ -675,7 +822,12 @@ function ReportsIcon() {
 function AddIcon() {
   return (
     <IconBase>
-      <circle cx="12" cy="12" r="9" />
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+      />
+
       <path
         strokeLinecap="round"
         d="M12 8v8M8 12h8"
@@ -684,26 +836,15 @@ function AddIcon() {
   );
 }
 
-function GenerateIcon() {
-  return (
-    <IconBase>
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M5 3h10l4 4v14H5V3Z"
-      />
-      <path
-        strokeLinecap="round"
-        d="M9 14h6M12 11v6"
-      />
-    </IconBase>
-  );
-}
-
 function UserIcon() {
   return (
     <IconBase>
-      <circle cx="12" cy="8" r="4" />
+      <circle
+        cx="12"
+        cy="8"
+        r="4"
+      />
+
       <path
         strokeLinecap="round"
         d="M4.5 21a7.5 7.5 0 0 1 15 0"
@@ -715,7 +856,12 @@ function UserIcon() {
 function SettingsIcon() {
   return (
     <IconBase>
-      <circle cx="12" cy="12" r="3" />
+      <circle
+        cx="12"
+        cy="12"
+        r="3"
+      />
+
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -728,7 +874,12 @@ function SettingsIcon() {
 function SunIcon() {
   return (
     <IconBase>
-      <circle cx="12" cy="12" r="4" />
+      <circle
+        cx="12"
+        cy="12"
+        r="4"
+      />
+
       <path
         strokeLinecap="round"
         d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"
@@ -759,6 +910,7 @@ function SystemIcon() {
         height="14"
         rx="2"
       />
+
       <path
         strokeLinecap="round"
         d="M8 22h8M12 18v4"
