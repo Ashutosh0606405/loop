@@ -21,8 +21,44 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 500): Pro
   throw lastError;
 }
 
+if (!process.env.NEXTAUTH_SECRET) {
+  // No fallback on purpose: this secret signs and verifies every session
+  // token. A hardcoded fallback here means anyone who reads the source can
+  // forge a valid session for any user in any workspace. Fail loudly at
+  // startup instead of silently signing sessions with a public string.
+  throw new Error(
+    "NEXTAUTH_SECRET is not set. Add it to your .env file — there is no fallback secret.",
+  );
+}
+
+const providers = [];
+
+// Only enable Google sign-in if real OAuth credentials are configured.
+// Previously this fell back to literal placeholder strings
+// ("mock-google-client-id" / "mock-google-client-secret"), which doesn't
+// let anyone forge a login (Google itself would reject them), but it's
+// still a hardcoded fake credential sitting in source for no reason —
+// better to just leave the provider out until it's configured for real.
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  providers.push(
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      authorization: {
+        params: {
+          prompt: "select_account",
+        },
+      },
+    }),
+  );
+} else {
+  console.warn(
+    "GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET not set — Google sign-in is disabled. Email/password login still works.",
+  );
+}
+
 export const authOptions: AuthOptions = {
-  secret: process.env.NEXTAUTH_SECRET || "loop-super-secret-key-2026",
+  secret: process.env.NEXTAUTH_SECRET,
   session: {
     strategy: "jwt",
   },
@@ -30,15 +66,7 @@ export const authOptions: AuthOptions = {
     signIn: "/",
   },
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID || "mock-google-client-id",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "mock-google-client-secret",
-      authorization: {
-        params: {
-          prompt: "select_account",
-        },
-      },
-    }),
+    ...providers,
     CredentialsProvider({
       name: "Credentials",
       credentials: {
