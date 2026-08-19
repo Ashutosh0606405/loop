@@ -171,17 +171,33 @@ export default function FeedbackPage() {
 
     Papa.parse(file, {
       header: true,
-      skipEmptyLines: true,
+      skipEmptyLines: "greedy",
+      transformHeader: (h) => h.replace(/^\uFEFF/, "").trim().toLowerCase(),
       complete: async (results) => {
         try {
-          const parsedItems = results.data.map((row: any) => ({
-            content: row.content || row.feedback || row.Message || row.MessageText || "",
-            channel: row.channel || row.source || "CSV Bulk Upload",
-            customerName: row.customer || row.customerName || row.name || "CSV Customer",
-          })).filter((item: any) => item.content.trim().length > 0);
+          const parsedItems = results.data
+            .map((row: any) => {
+              if (!row || typeof row !== "object") return null;
+              // Extract normalized key values
+              const getVal = (...keys: string[]) => {
+                for (const k of keys) {
+                  if (row[k] !== undefined && row[k] !== null && String(row[k]).trim()) {
+                    return String(row[k]).trim();
+                  }
+                }
+                return "";
+              };
+
+              const content = getVal("content", "feedback", "message", "messagetext", "review", "comment", "text", "details", "description");
+              const customerName = getVal("customer", "customername", "customer_name", "name", "author", "user", "email") || "Anonymous Customer";
+              const channel = getVal("channel", "source", "type", "platform", "category") || "CSV Bulk Upload";
+
+              return content ? { content, customerName, channel } : null;
+            })
+            .filter((item): item is { content: string; customerName: string; channel: string } => item !== null);
 
           if (parsedItems.length === 0) {
-            setCsvMessage("⚠️ No valid feedback entries found in CSV. Expected columns: 'content', 'customer', 'channel'.");
+            setCsvMessage("⚠️ No valid feedback text entries found in CSV. Please ensure your file has a 'content' or 'feedback' column.");
             setCsvUploading(false);
             return;
           }

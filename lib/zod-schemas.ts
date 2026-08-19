@@ -15,7 +15,7 @@ export const loginSchema = z.object({
 
 // Feedback Submission & Ingestion Schemas
 export const createFeedbackSchema = z.object({
-  content: z.string().min(5, "Feedback content must be at least 5 characters"),
+  content: z.string().min(1, "Feedback content is required"),
   channel: z.string().default("Web Form"),
   customerName: z.string().optional(),
 });

@@ -10,10 +10,28 @@ export async function POST(req: Request) {
     const tenant = await getTenantContext();
     const body = await req.json();
 
-    const validated = bulkIngestSchema.safeParse(body);
+    const rawItems = Array.isArray(body?.items) ? body.items : [];
+    
+    // Sanitize incoming items to ensure non-empty content
+    const sanitizedItems = rawItems
+      .map((item: any) => ({
+        content: String(item?.content || item?.feedback || item?.message || "").trim(),
+        channel: String(item?.channel || item?.source || "CSV Import").trim() || "CSV Import",
+        customerName: String(item?.customerName || item?.customer || item?.name || "Anonymous Customer").trim() || "Anonymous Customer",
+      }))
+      .filter((item: { content: string }) => item.content.length > 0);
+
+    if (sanitizedItems.length === 0) {
+      return NextResponse.json(
+        { error: "No valid non-empty feedback entries found in the request." },
+        { status: 400 }
+      );
+    }
+
+    const validated = bulkIngestSchema.safeParse({ items: sanitizedItems });
     if (!validated.success) {
       return NextResponse.json(
-        { error: "Validation failed", details: validated.error.flatten().fieldErrors },
+        { error: "CSV validation failed", details: validated.error.flatten().fieldErrors },
         { status: 400 }
       );
     }
