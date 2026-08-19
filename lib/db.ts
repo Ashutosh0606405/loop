@@ -5,6 +5,7 @@ import "dotenv/config";
 
 const connectionString =
   process.env.DATABASE_URL ||
+  process.env.DIRECT_URL ||
   "postgresql://postgres.vqwnrsxtmifkykdxegyu:Loop%401615%401@aws-1-ap-south-1.pooler.supabase.com:6543/postgres?pgbouncer=true";
 
 const globalForPrisma = globalThis as unknown as {

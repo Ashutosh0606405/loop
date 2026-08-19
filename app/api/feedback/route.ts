@@ -4,6 +4,7 @@ import { getTenantContext, unauthorizedResponse } from "@/lib/tenant-guard";
 import { createFeedbackSchema, feedbackQuerySchema } from "@/lib/zod-schemas";
 
 export const dynamic = "force-dynamic";
+import { classifyFeedbackItem } from "@/lib/classify-feedback";
 
 /**
  * GET /api/feedback
@@ -131,48 +132,41 @@ export async function POST(req: Request) {
       },
     });
 
-    return NextResponse.json(newFeedback, { status: 201 });
+    // Classify and embed immediately. Without this the item has no sentiment,
+    // no themes, and — critically — no embedding, so it is invisible to Ask
+    // LOOP's semantic search even though the UI tells the user it was sent
+    // for classification. A failure here must not lose the feedback itself,
+    // so it's reported rather than thrown.
+    let classification: Awaited<ReturnType<typeof classifyFeedbackItem>> | null = null;
+    let classificationError: string | null = null;
+
+    try {
+      classification = await classifyFeedbackItem(newFeedback, tenant.workspaceId);
+    } catch (classifyErr: any) {
+      console.error("POST /api/feedback: classification failed", classifyErr);
+      classificationError = classifyErr?.message ?? "Classification failed";
+    }
+
+    return NextResponse.json(
+      {
+        ...(classification?.feedback ?? newFeedback),
+        classification: {
+          ok: classification !== null,
+          // false means the keyword fallback was used, not real AI.
+          classifiedByAI: classification?.classifiedByAI ?? false,
+          // false means this item will NOT be findable by semantic search.
+          embedded: classification?.embedded ?? false,
+          themes: classification?.themes ?? [],
+          error: classificationError,
+        },
+      },
+      { status: 201 },
+    );
   } catch (error: any) {
     if (error.message?.startsWith("UNAUTHORIZED")) {
       return unauthorizedResponse(error.message);
     }
     console.error("POST /api/feedback error:", error);
     return NextResponse.json({ error: "Failed to ingest feedback" }, { status: 500 });
-  }
-}
-
-/**
- * PATCH /api/feedback
- * Update feedback item fields (status, sentiment) and flag as human-reviewed.
- */
-export async function PATCH(req: Request) {
-  try {
-    const tenant = await getTenantContext();
-    const { id, status, sentiment, sentimentScore } = await req.json();
-
-    if (!id) {
-      return NextResponse.json({ error: "Feedback id is required" }, { status: 400 });
-    }
-
-    const updated = await db.feedback.updateMany({
-      where: {
-        id,
-        workspaceId: tenant.workspaceId,
-      },
-      data: {
-        ...(status && { status }),
-        ...(sentiment && { sentiment }),
-        ...(typeof sentimentScore === "number" && { sentimentScore }),
-        isManuallyReviewed: true, // TASK 7 FIX: Mark as human reviewed so bulk re-classify will not overwrite
-      },
-    });
-
-    return NextResponse.json({ message: "Feedback updated and marked as human reviewed", count: updated.count });
-  } catch (error: any) {
-    if (error.message?.startsWith("UNAUTHORIZED")) {
-      return unauthorizedResponse(error.message);
-    }
-    console.error("PATCH /api/feedback error:", error);
-    return NextResponse.json({ error: "Failed to update feedback" }, { status: 500 });
   }
 }

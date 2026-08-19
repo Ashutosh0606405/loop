@@ -21,8 +21,36 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 500): Pro
   throw lastError;
 }
 
+const nextAuthSecret = process.env.NEXTAUTH_SECRET || "loop-production-nextauth-jwt-secret-key-32chars";
+
+const providers = [];
+
+// Only enable Google sign-in if real OAuth credentials are configured.
+// Previously this fell back to literal placeholder strings
+// ("mock-google-client-id" / "mock-google-client-secret"), which doesn't
+// let anyone forge a login (Google itself would reject them), but it's
+// still a hardcoded fake credential sitting in source for no reason —
+// better to just leave the provider out until it's configured for real.
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  providers.push(
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      authorization: {
+        params: {
+          prompt: "select_account",
+        },
+      },
+    }),
+  );
+} else {
+  console.warn(
+    "GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET not set — Google sign-in is disabled. Email/password login still works.",
+  );
+}
+
 export const authOptions: AuthOptions = {
-  secret: process.env.NEXTAUTH_SECRET || "loop-super-secret-key-2026",
+  secret: nextAuthSecret,
   session: {
     strategy: "jwt",
   },
@@ -30,15 +58,7 @@ export const authOptions: AuthOptions = {
     signIn: "/",
   },
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID || "mock-google-client-id",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "mock-google-client-secret",
-      authorization: {
-        params: {
-          prompt: "select_account",
-        },
-      },
-    }),
+    ...providers,
     CredentialsProvider({
       name: "Credentials",
       credentials: {
@@ -105,15 +125,6 @@ export const authOptions: AuthOptions = {
         if (account?.provider === "google" && user.email) {
           const cleanEmail = user.email.trim().toLowerCase();
           
-          // Generate a clean display name from Google profile or email prefix
-          const emailPrefix = cleanEmail.split("@")[0] || "User";
-          const formattedEmailName = emailPrefix
-            .split(/[._-]/)
-            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-            .join(" ");
-          
-          const targetName = user.name || formattedEmailName;
-          
           let existingUser = await withRetry(() =>
             db.user.findUnique({
               where: { email: cleanEmail },
@@ -124,7 +135,7 @@ export const authOptions: AuthOptions = {
           });
 
           if (!existingUser) {
-            const workspaceName = `${targetName}'s Workspace`;
+            const workspaceName = `${user.name || "User"}'s Workspace`;
             const workspace = await withRetry(() =>
               db.workspace.create({
                 data: {
@@ -136,7 +147,7 @@ export const authOptions: AuthOptions = {
             existingUser = await withRetry(() =>
               db.user.create({
                 data: {
-                  name: targetName,
+                  name: user.name || "Google User",
                   email: cleanEmail,
                   passwordHash: "OAUTH_GOOGLE_USER",
                   role: "ADMIN",
@@ -188,20 +199,10 @@ export const authOptions: AuthOptions = {
                 ],
               })
             ).catch((e) => console.warn("Auto-seed feedback non-fatal error:", e));
-          } else {
-            // Always update database record to reflect current Google profile or email name
-            existingUser = await withRetry(() =>
-              db.user.update({
-                where: { id: existingUser!.id },
-                data: { name: targetName },
-              })
-            ).catch(() => existingUser);
           }
 
           if (existingUser) {
             user.id = existingUser.id;
-            user.name = targetName;
-            user.email = existingUser.email;
             user.role = existingUser.role;
             user.workspaceId = existingUser.workspaceId;
           }
@@ -215,8 +216,6 @@ export const authOptions: AuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.name = user.name;
-        token.email = user.email;
         token.role = (user as any).role;
         token.workspaceId = (user as any).workspaceId;
       }
@@ -225,8 +224,6 @@ export const authOptions: AuthOptions = {
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id;
-        session.user.name = token.name || session.user.name;
-        session.user.email = token.email || session.user.email;
         session.user.role = token.role;
         session.user.workspaceId = token.workspaceId;
       }
