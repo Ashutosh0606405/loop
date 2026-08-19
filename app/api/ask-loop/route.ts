@@ -5,8 +5,6 @@ import { askLoopQuerySchema } from "@/lib/zod-schemas";
 
 export const dynamic = "force-dynamic";
 
-export const dynamic = "force-dynamic";
-
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY;
 
 export async function POST(req: Request) {

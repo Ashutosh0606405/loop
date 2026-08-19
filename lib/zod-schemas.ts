@@ -25,6 +25,10 @@ export const updateFeedbackStatusSchema = z.object({
   status: z.enum(["NEW", "REVIEWED", "ACTIONED"]),
 });
 
+export const classifyRequestSchema = z.object({
+  feedbackId: z.string().min(1, "Feedback ID is required"),
+});
+
 export const bulkIngestSchema = z.object({
   items: z.array(createFeedbackSchema).min(1, "At least one feedback item required"),
 });
