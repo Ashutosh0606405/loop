@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getTenantContext, unauthorizedResponse } from "@/lib/tenant-guard";
 import { createFeedbackSchema, feedbackQuerySchema } from "@/lib/zod-schemas";
+
+export const dynamic = "force-dynamic";
 import { classifyFeedbackItem } from "@/lib/classify-feedback";
 
 /**

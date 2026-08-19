@@ -4,6 +4,8 @@ import { getTenantContext, unauthorizedResponse } from "@/lib/tenant-guard";
 import { askLoopQuerySchema } from "@/lib/zod-schemas";
 import { embedText, cosineSimilarity } from "@/lib/embeddings";
 
+export const dynamic = "force-dynamic";
+
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY;
 
 // Cosine scores below this are treated as "not actually about this question".
