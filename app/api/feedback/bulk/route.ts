@@ -47,14 +47,26 @@ export async function POST(req: Request) {
       workspaceId: tenant.workspaceId,
     }));
 
-    const result = await db.feedback.createMany({
-      data: feedbackRecords,
-    });
+    let createdCount = 0;
+
+    try {
+      const result = await db.feedback.createMany({
+        data: feedbackRecords,
+      });
+      createdCount = result.count;
+    } catch (createManyErr) {
+      console.warn("createMany failed, falling back to batch create:", createManyErr);
+      // Fallback for Supabase PgBouncer pooler environments where createMany is unsupported
+      for (const rec of feedbackRecords) {
+        await db.feedback.create({ data: rec });
+        createdCount++;
+      }
+    }
 
     return NextResponse.json(
       {
-        message: `Successfully ingested ${result.count} feedback entries`,
-        count: result.count,
+        message: `Successfully ingested ${createdCount} feedback entries`,
+        count: createdCount,
       },
       { status: 201 }
     );
@@ -63,6 +75,6 @@ export async function POST(req: Request) {
       return unauthorizedResponse(error.message);
     }
     console.error("POST /api/feedback/bulk error:", error);
-    return NextResponse.json({ error: "Failed to perform bulk ingestion" }, { status: 500 });
+    return NextResponse.json({ error: error?.message || "Failed to perform bulk ingestion" }, { status: 500 });
   }
 }
