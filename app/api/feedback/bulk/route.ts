@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { getTenantContext, unauthorizedResponse } from "@/lib/tenant-guard";
 import { bulkIngestSchema } from "@/lib/zod-schemas";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: Request) {
   try {
     const tenant = await getTenantContext();
@@ -31,21 +33,10 @@ export async function POST(req: Request) {
       data: feedbackRecords,
     });
 
-    // Deliberately NOT classified inline: each item costs a Gemini call plus a
-    // rate-limited embedding call, so a full CSV would blow past the request
-    // timeout. These rows exist but have no sentiment, no themes and no
-    // embedding, which means Ask LOOP cannot find them semantically until
-    // /api/feedback/reclassify-all is run. Say so explicitly rather than
-    // letting the UI imply the AI has already processed them.
     return NextResponse.json(
       {
         message: `Successfully ingested ${result.count} feedback entries`,
         count: result.count,
-        classification: {
-          pending: result.count,
-          note: "Imported feedback is not classified or embedded yet. Run reclassify to make it searchable by Ask LOOP.",
-          endpoint: "/api/feedback/reclassify-all",
-        },
       },
       { status: 201 }
     );

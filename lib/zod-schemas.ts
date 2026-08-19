@@ -15,17 +15,9 @@ export const loginSchema = z.object({
 
 // Feedback Submission & Ingestion Schemas
 export const createFeedbackSchema = z.object({
-  content: z
-    .string()
-    .min(5, "Feedback content must be at least 5 characters")
-    .max(5000, "Feedback content must be under 5000 characters"),
-  channel: z.string().max(100).default("Web Form"),
-  customerName: z.string().max(200).optional(),
-});
-
-// Single-item classification request.
-export const classifyRequestSchema = z.object({
-  feedbackId: z.string().min(1, "feedbackId is required"),
+  content: z.string().min(5, "Feedback content must be at least 5 characters"),
+  channel: z.string().default("Web Form"),
+  customerName: z.string().optional(),
 });
 
 export const updateFeedbackStatusSchema = z.object({
@@ -34,17 +26,7 @@ export const updateFeedbackStatusSchema = z.object({
 });
 
 export const bulkIngestSchema = z.object({
-  items: z
-    .array(createFeedbackSchema)
-    .min(1, "At least one feedback item required")
-    .max(500, "A maximum of 500 feedback items can be ingested per request"),
-});
-
-// Bulk reclassification — batched so a large workspace doesn't blow past the
-// request timeout mid-loop and report a misleading partial success.
-export const reclassifyAllSchema = z.object({
-  limit: z.coerce.number().min(1).max(50).default(25),
-  cursor: z.string().optional(),
+  items: z.array(createFeedbackSchema).min(1, "At least one feedback item required"),
 });
 
 // Feedback Query & Pagination Schema
@@ -61,15 +43,6 @@ export const feedbackQuerySchema = z.object({
 // AI Ask LOOP Query Schema
 export const askLoopQuerySchema = z.object({
   question: z.string().min(3, "Question must be at least 3 characters"),
-  mode: z.enum(["Concise", "Detailed"]).optional().default("Detailed"),
-});
-
-// AI Classification Output Schema — validates whatever the model returns
-// before it gets trusted and written to the database.
-export const classificationSchema = z.object({
-  sentiment: z.enum(["POSITIVE", "NEGATIVE", "NEUTRAL"]),
-  sentimentScore: z.number().min(-1).max(1),
-  themes: z.array(z.string()).default([]),
 });
 
 // Report Generator Schema

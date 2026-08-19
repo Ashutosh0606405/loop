@@ -63,15 +63,17 @@ model Feedback {
   customerName   String?
   workspaceId    String
   workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  themes         FeedbackTheme[]
-  embeddings     Embedding[]
+  isManuallyReviewed Boolean         @default(false)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  themes             FeedbackTheme[]
+  embeddings         Embedding[]
 
   @@index([workspaceId])
   @@index([workspaceId, status])
   @@index([workspaceId, channel])
   @@index([workspaceId, sentiment])
+  @@index([workspaceId, isManuallyReviewed])
 }
 
 model Theme {

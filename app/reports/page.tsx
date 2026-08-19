@@ -1,2135 +1,617 @@
 "use client";
 
-import Link from "next/link";
-
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
-
+import { useState } from "react";
 import LoopShell from "../../components/LoopShell";
 
-type RangeKey = "7D" | "30D" | "90D";
+type ReportPeriod =
+  | "Last 7 Days"
+  | "Last 30 Days"
+  | "Last 3 Months";
 
-type Sentiment =
-  | "POSITIVE"
-  | "NEGATIVE"
-  | "NEUTRAL";
-
-type FeedbackStatus =
-  | "NEW"
-  | "REVIEWED"
-  | "ACTIONED";
-
-type ThemeRelation = {
-  theme?: {
-    id?: string;
-    name?: string;
-  } | null;
-};
-
-type FeedbackItem = {
-  id: string;
-  content: string;
-  customerName?: string | null;
-  channel?: string | null;
-  sentiment?: Sentiment | null;
-  status?: FeedbackStatus | null;
-  createdAt: string;
-  themes?: ThemeRelation[];
-};
-
-type FeedbackResponse = {
-  data: FeedbackItem[];
-  meta: {
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  };
-};
-
-type ActivityBucket = {
-  label: string;
-  count: number;
-};
-
-const rangeOptions: {
-  key: RangeKey;
-  label: string;
-  days: number;
-}[] = [
+const sentimentData = [
   {
-    key: "7D",
-    label: "7D",
-    days: 7,
+    name: "Positive",
+    value: 62,
+    barStyle: "bg-emerald-500",
+    textStyle: "text-emerald-700",
+    backgroundStyle: "bg-emerald-50",
   },
   {
-    key: "30D",
-    label: "30D",
-    days: 30,
+    name: "Neutral",
+    value: 23,
+    barStyle: "bg-amber-500",
+    textStyle: "text-amber-700",
+    backgroundStyle: "bg-amber-50",
   },
   {
-    key: "90D",
-    label: "90D",
-    days: 90,
+    name: "Negative",
+    value: 15,
+    barStyle: "bg-rose-500",
+    textStyle: "text-rose-700",
+    backgroundStyle: "bg-rose-50",
   },
 ];
 
-function startOfDay(
-  value: Date,
-) {
-  const date = new Date(value);
+const topThemes = [
+  {
+    name: "User Experience",
+    mentions: 342,
+    percentage: 88,
+    trend: "+12%",
+  },
+  {
+    name: "Payment Confirmation",
+    mentions: 286,
+    percentage: 74,
+    trend: "+18%",
+  },
+  {
+    name: "Application Speed",
+    mentions: 214,
+    percentage: 58,
+    trend: "+9%",
+  },
+  {
+    name: "Customer Support",
+    mentions: 176,
+    percentage: 46,
+    trend: "+6%",
+  },
+  {
+    name: "Onboarding",
+    mentions: 129,
+    percentage: 34,
+    trend: "-3%",
+  },
+];
 
-  date.setHours(
-    0,
-    0,
-    0,
-    0,
-  );
-
-  return date;
-}
-
-function endOfDay(
-  value: Date,
-) {
-  const date = new Date(value);
-
-  date.setHours(
-    23,
-    59,
-    59,
-    999,
-  );
-
-  return date;
-}
-
-function getRangeDays(
-  range: RangeKey,
-) {
-  return (
-    rangeOptions.find(
-      (item) =>
-        item.key === range,
-    )?.days ?? 7
-  );
-}
-
-function getRangeDates(
-  days: number,
-) {
-  const end =
-    endOfDay(new Date());
-
-  const start =
-    startOfDay(new Date());
-
-  start.setDate(
-    start.getDate() -
-      (days - 1),
-  );
-
-  return {
-    start,
-    end,
-  };
-}
-
-function filterByRange(
-  feedback: FeedbackItem[],
-  start: Date,
-  end: Date,
-) {
-  return feedback.filter(
-    (item) => {
-      const createdAt =
-        new Date(
-          item.createdAt,
-        );
-
-      if (
-        Number.isNaN(
-          createdAt.getTime(),
-        )
-      ) {
-        return false;
-      }
-
-      return (
-        createdAt >= start &&
-        createdAt <= end
-      );
-    },
-  );
-}
-
-function isClassified(
-  item: FeedbackItem,
-): item is FeedbackItem & {
-  sentiment: Sentiment;
-} {
-  return (
-    item.sentiment === "POSITIVE" ||
-    item.sentiment === "NEUTRAL" ||
-    item.sentiment === "NEGATIVE"
-  );
-}
-
-function percentage(
-  value: number,
-  total: number,
-) {
-  if (total <= 0) {
-    return 0;
-  }
-
-  return Math.round(
-    (value / total) * 100,
-  );
-}
-
-function formatDate(
-  value: string,
-) {
-  const date =
-    new Date(value);
-
-  if (
-    Number.isNaN(
-      date.getTime(),
-    )
-  ) {
-    return "Unknown date";
-  }
-
-  return new Intl.DateTimeFormat(
-    "en-IN",
-    {
-      dateStyle: "medium",
-      timeStyle: "short",
-    },
-  ).format(date);
-}
-
-function formatShortDate(
-  date: Date,
-) {
-  return new Intl.DateTimeFormat(
-    "en-IN",
-    {
-      day: "numeric",
-      month: "short",
-    },
-  ).format(date);
-}
-
-function createActivityBuckets(
-  feedback: FeedbackItem[],
-  days: number,
-): ActivityBucket[] {
-  const today =
-    endOfDay(new Date());
-
-  if (days === 7) {
-    return Array.from(
-      {
-        length: 7,
-      },
-      (_, index) => {
-        const day =
-          startOfDay(today);
-
-        day.setDate(
-          day.getDate() -
-            (6 - index),
-        );
-
-        return {
-          label:
-            new Intl.DateTimeFormat(
-              "en-IN",
-              {
-                weekday:
-                  "short",
-              },
-            ).format(day),
-
-          count:
-            filterByRange(
-              feedback,
-              day,
-              endOfDay(day),
-            ).length,
-        };
-      },
-    );
-  }
-
-  const bucketCount = 6;
-
-  const bucketSize =
-    Math.ceil(
-      days /
-        bucketCount,
-    );
-
-  const requestedStart =
-    startOfDay(today);
-
-  requestedStart.setDate(
-    requestedStart.getDate() -
-      (days - 1),
-  );
-
-  return Array.from(
-    {
-      length:
-        bucketCount,
-    },
-    (_, index) => {
-      const bucketEnd =
-        endOfDay(today);
-
-      bucketEnd.setDate(
-        bucketEnd.getDate() -
-          (bucketCount -
-            index -
-            1) *
-            bucketSize,
-      );
-
-      const bucketStart =
-        startOfDay(
-          bucketEnd,
-        );
-
-      bucketStart.setDate(
-        bucketStart.getDate() -
-          (bucketSize - 1),
-      );
-
-      if (
-        bucketStart <
-        requestedStart
-      ) {
-        bucketStart.setTime(
-          requestedStart.getTime(),
-        );
-      }
-
-      return {
-        label:
-          formatShortDate(
-            bucketStart,
-          ),
-
-        count:
-          filterByRange(
-            feedback,
-            bucketStart,
-            bucketEnd,
-          ).length,
-      };
-    },
-  );
-}
-
-async function fetchAllFeedback(
-  signal: AbortSignal,
-) {
-  const results:
-    FeedbackItem[] = [];
-
-  let page = 1;
-  let totalPages = 1;
-
-  do {
-    const response =
-      await fetch(
-        `/api/feedback?page=${page}&limit=100`,
-        {
-          method: "GET",
-          cache: "no-store",
-          signal,
-        },
-      );
-
-    if (!response.ok) {
-      const errorBody =
-        await response
-          .json()
-          .catch(
-            () => null,
-          );
-
-      const message =
-        errorBody &&
-        typeof errorBody ===
-          "object" &&
-        "error" in errorBody &&
-        typeof errorBody.error ===
-          "string"
-          ? errorBody.error
-          : "Unable to load report data.";
-
-      throw new Error(
-        message,
-      );
-    }
-
-    const payload =
-      (await response.json()) as
-        FeedbackResponse;
-
-    if (
-      !Array.isArray(
-        payload.data,
-      )
-    ) {
-      throw new Error(
-        "Unexpected feedback response.",
-      );
-    }
-
-    results.push(
-      ...payload.data,
-    );
-
-    totalPages =
-      Math.max(
-        1,
-        payload.meta
-          ?.totalPages ?? 1,
-      );
-
-    page += 1;
-  } while (
-    page <= totalPages
-  );
-
-  return results;
-}
-
-function escapeCsv(
-  value:
-    | string
-    | number
-    | null
-    | undefined,
-) {
-  const text =
-    value === null ||
-    value === undefined
-      ? ""
-      : String(value);
-
-  return `"${text.replace(
-    /"/g,
-    '""',
-  )}"`;
-}
+const recommendations = [
+  {
+    priority: "High",
+    title: "Improve checkout performance",
+    description:
+      "Customers report slow checkout performance when multiple products are added.",
+    impact: "Reduce checkout abandonment",
+    style: "bg-rose-100 text-rose-700",
+  },
+  {
+    priority: "High",
+    title: "Add real-time payment status",
+    description:
+      "Customers need clearer confirmation while a payment transaction is processing.",
+    impact: "Improve customer trust",
+    style: "bg-rose-100 text-rose-700",
+  },
+  {
+    priority: "Medium",
+    title: "Simplify onboarding",
+    description:
+      "New users feel that the initial product walkthrough contains too many steps.",
+    impact: "Improve activation rate",
+    style: "bg-amber-100 text-amber-700",
+  },
+  {
+    priority: "Low",
+    title: "Expand support knowledge base",
+    description:
+      "Common account questions can be converted into self-service help articles.",
+    impact: "Reduce support tickets",
+    style: "bg-blue-100 text-blue-700",
+  },
+];
 
 export default function ReportsPage() {
-  const [
-    selectedRange,
-    setSelectedRange,
-  ] =
-    useState<RangeKey>(
-      "30D",
-    );
+  const [period, setPeriod] =
+    useState<ReportPeriod>("Last 30 Days");
 
-  const [
-    feedback,
-    setFeedback,
-  ] =
-    useState<
-      FeedbackItem[]
-    >([]);
+  const [reportType, setReportType] =
+    useState("Executive Summary");
 
-  const [
-    loading,
-    setLoading,
-  ] =
-    useState(true);
+  const [isGenerated, setIsGenerated] =
+    useState(false);
 
-  const [
-    error,
-    setError,
-  ] =
-    useState("");
-
-  const [
-    refreshKey,
-    setRefreshKey,
-  ] =
-    useState(0);
-
-  useEffect(() => {
-    const controller =
-      new AbortController();
-
-    fetchAllFeedback(
-      controller.signal,
-    )
-      .then(
-        (items) => {
-          setFeedback(
-            items,
-          );
-
-          setError("");
-        },
-      )
-      .catch(
-        (
-          requestError:
-            unknown,
-        ) => {
-          if (
-            requestError instanceof
-              DOMException &&
-            requestError.name ===
-              "AbortError"
-          ) {
-            return;
-          }
-
-          setError(
-            requestError instanceof
-              Error
-              ? requestError.message
-              : "Unable to load reports.",
-          );
-        },
-      )
-      .finally(() => {
-        if (
-          !controller
-            .signal
-            .aborted
-        ) {
-          setLoading(
-            false,
-          );
-        }
-      });
-
-    return () => {
-      controller.abort();
-    };
-  }, [refreshKey]);
-
-  const rangeDays =
-    getRangeDays(
-      selectedRange,
-    );
-
-  const range =
-    useMemo(
-      () =>
-        getRangeDates(
-          rangeDays,
-        ),
-      [rangeDays],
-    );
-
-  const currentFeedback =
-    useMemo(
-      () =>
-        filterByRange(
-          feedback,
-          range.start,
-          range.end,
-        ),
-      [
-        feedback,
-        range,
-      ],
-    );
-
-  const report =
-    useMemo(() => {
-      const total =
-        currentFeedback.length;
-
-      const classified =
-        currentFeedback.filter(
-          isClassified,
-        );
-
-      const positive =
-        classified.filter(
-          (item) =>
-            item.sentiment ===
-            "POSITIVE",
-        ).length;
-
-      const neutral =
-        classified.filter(
-          (item) =>
-            item.sentiment ===
-            "NEUTRAL",
-        ).length;
-
-      const negative =
-        classified.filter(
-          (item) =>
-            item.sentiment ===
-            "NEGATIVE",
-        ).length;
-
-      const newCount =
-        currentFeedback.filter(
-          (item) =>
-            !item.status ||
-            item.status ===
-              "NEW",
-        ).length;
-
-      const reviewed =
-        currentFeedback.filter(
-          (item) =>
-            item.status ===
-            "REVIEWED",
-        ).length;
-
-      const actioned =
-        currentFeedback.filter(
-          (item) =>
-            item.status ===
-            "ACTIONED",
-        ).length;
-
-      const themeCounts =
-        new Map<
-          string,
-          number
-        >();
-
-      let themedRecords = 0;
-
-      const channelCounts =
-        new Map<
-          string,
-          number
-        >();
-
-      currentFeedback.forEach(
-        (item) => {
-          const themes =
-            (
-              item.themes ??
-              []
-            ).filter(
-              (
-                relation,
-              ) =>
-                Boolean(
-                  relation.theme
-                    ?.name?.trim(),
-                ),
-            );
-
-          if (
-            themes.length >
-            0
-          ) {
-            themedRecords += 1;
-          }
-
-          themes.forEach(
-            (
-              relation,
-            ) => {
-              const name =
-                relation.theme
-                  ?.name?.trim();
-
-              if (!name) {
-                return;
-              }
-
-              themeCounts.set(
-                name,
-                (themeCounts.get(
-                  name,
-                ) ?? 0) + 1,
-              );
-            },
-          );
-
-          const channel =
-            item.channel
-              ?.trim() ||
-            "Unknown";
-
-          channelCounts.set(
-            channel,
-            (channelCounts.get(
-              channel,
-            ) ?? 0) + 1,
-          );
-        },
-      );
-
-      const themes = [
-        ...themeCounts.entries(),
-      ]
-        .sort(
-          (a, b) =>
-            b[1] - a[1],
-        )
-        .slice(
-          0,
-          6,
-        );
-
-      const channels = [
-        ...channelCounts.entries(),
-      ]
-        .sort(
-          (a, b) =>
-            b[1] - a[1],
-        )
-        .slice(
-          0,
-          6,
-        );
-
-      const needsAttention =
-        currentFeedback
-          .filter(
-            (item) =>
-              item.sentiment ===
-                "NEGATIVE" ||
-              (!item.status ||
-                item.status ===
-                  "NEW"),
-          )
-          .sort(
-            (a, b) =>
-              new Date(
-                b.createdAt,
-              ).getTime() -
-              new Date(
-                a.createdAt,
-              ).getTime(),
-          )
-          .slice(
-            0,
-            4,
-          );
-
-      return {
-        total,
-        classified:
-          classified.length,
-        unclassified:
-          Math.max(
-            0,
-            total -
-              classified.length,
-          ),
-
-        positive,
-        neutral,
-        negative,
-
-        positiveRate:
-          percentage(
-            positive,
-            classified.length,
-          ),
-
-        neutralRate:
-          percentage(
-            neutral,
-            classified.length,
-          ),
-
-        negativeRate:
-          percentage(
-            negative,
-            classified.length,
-          ),
-
-        classificationCoverage:
-          percentage(
-            classified.length,
-            total,
-          ),
-
-        newCount,
-        reviewed,
-        actioned,
-
-        themeCount:
-          themeCounts.size,
-
-        themeCoverage:
-          percentage(
-            themedRecords,
-            total,
-          ),
-
-        themes,
-        channels,
-        needsAttention,
-      };
-    }, [
-      currentFeedback,
-    ]);
-
-  const activity =
-    useMemo(
-      () =>
-        createActivityBuckets(
-          currentFeedback,
-          rangeDays,
-        ),
-      [
-        currentFeedback,
-        rangeDays,
-      ],
-    );
-
-  const maxActivity =
-    Math.max(
-      ...activity.map(
-        (item) =>
-          item.count,
-      ),
-      1,
-    );
-
-  function refreshReports() {
-    setLoading(true);
-
-    setError("");
-
-    setRefreshKey(
-      (value) =>
-        value + 1,
-    );
+  function generateReport() {
+    setIsGenerated(true);
   }
 
-  function exportCsv() {
-    if (
-      currentFeedback.length ===
-      0
-    ) {
-      return;
-    }
+  function downloadReport() {
+    const reportContent = `
+PROJECT LOOP - CUSTOMER FEEDBACK REPORT
 
-    const rows = [
-      [
-        "Customer",
-        "Channel",
-        "Sentiment",
-        "Status",
-        "Themes",
-        "Created At",
-        "Feedback",
-      ],
+Report Type: ${reportType}
+Report Period: ${period}
 
-      ...currentFeedback.map(
-        (item) => [
-          item.customerName ||
-            "Anonymous Customer",
+SUMMARY
+Total Feedback: 1,248
+Positive Sentiment: 62%
+Neutral Sentiment: 23%
+Negative Sentiment: 15%
+Active Themes: 12
 
-          item.channel ||
-            "Unknown",
+TOP THEMES
+1. User Experience - 342 mentions
+2. Payment Confirmation - 286 mentions
+3. Application Speed - 214 mentions
+4. Customer Support - 176 mentions
+5. Onboarding - 129 mentions
 
-          item.sentiment ||
-            "UNCLASSIFIED",
+KEY RECOMMENDATIONS
+1. Improve checkout performance.
+2. Add real-time payment status.
+3. Simplify the onboarding process.
+4. Expand the customer-support knowledge base.
 
-          item.status ||
-            "NEW",
+Generated using Project LOOP frontend prototype.
+`;
 
-          (
-            item.themes ??
-            []
-          )
-            .map(
-              (
-                relation,
-              ) =>
-                relation.theme
-                  ?.name,
-            )
-            .filter(Boolean)
-            .join("; "),
-
-          formatDate(
-            item.createdAt,
-          ),
-
-          item.content,
-        ],
-      ),
-    ];
-
-    const csv =
-      rows
-        .map((row) =>
-          row
-            .map(
-              (
-                value,
-              ) =>
-                escapeCsv(
-                  value,
-                ),
-            )
-            .join(","),
-        )
-        .join("\n");
-
-    const blob =
-      new Blob(
-        [csv],
-        {
-          type: "text/csv;charset=utf-8;",
-        },
-      );
-
-    const url =
-      window.URL.createObjectURL(
-        blob,
-      );
-
-    const anchor =
-      document.createElement(
-        "a",
-      );
-
-    anchor.href = url;
-
-    anchor.download =
-      `loop-feedback-${selectedRange.toLowerCase()}.csv`;
-
-    document.body.appendChild(
-      anchor,
+    const reportBlob = new Blob(
+      [reportContent],
+      {
+        type: "text/plain",
+      },
     );
 
-    anchor.click();
+    const reportUrl =
+      URL.createObjectURL(reportBlob);
 
-    anchor.remove();
+    const downloadLink =
+      document.createElement("a");
 
-    window.URL.revokeObjectURL(
-      url,
-    );
+    downloadLink.href = reportUrl;
+    downloadLink.download =
+      "project-loop-feedback-report.txt";
+
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+
+    URL.revokeObjectURL(reportUrl);
   }
 
   return (
     <LoopShell
       title="Reports"
-      subtitle="Explore customer feedback trends using real workspace data."
+      subtitle="Generate and explore customer-feedback reports."
     >
-      <div className="mx-auto max-w-[1500px] space-y-5">
-        <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between">
+      {/* Hero Section */}
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-indigo-950 to-blue-900 p-7 text-white shadow-xl md:p-9">
+        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-blue-400/20 blur-3xl" />
+
+        <div className="absolute -bottom-20 left-1/3 h-56 w-56 rounded-full bg-violet-500/20 blur-3xl" />
+
+        <div className="relative flex flex-col justify-between gap-7 lg:flex-row lg:items-center">
           <div>
-            <p className="text-xs font-semibold text-slate-950 dark:text-white">
-              Feedback report
-            </p>
+            <span className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-blue-100">
+              Feedback Reporting Centre
+            </span>
 
-            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-              {formatShortDate(
-                range.start,
-              )}{" "}
-              —{" "}
-              {formatShortDate(
-                range.end,
-              )}
+            <h1 className="mt-5 max-w-3xl text-3xl font-bold leading-tight md:text-4xl">
+              Transform customer feedback into
+              clear business reports.
+            </h1>
+
+            <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300 md:text-base">
+              Monitor sentiment, discover emerging
+              themes and identify actions that can
+              improve the customer experience.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
-              {rangeOptions.map(
-                (
-                  option,
-                ) => (
-                  <button
-                    key={
-                      option.key
-                    }
-                    type="button"
-                    onClick={() =>
-                      setSelectedRange(
-                        option.key,
-                      )
-                    }
-                    className={`rounded-lg px-4 py-2 text-[11px] font-semibold transition ${
-                      selectedRange ===
-                      option.key
-                        ? "bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white"
-                        : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-                    }`}
-                  >
-                    {
-                      option.label
-                    }
-                  </button>
-                ),
-              )}
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="rounded-xl border border-white/20 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/20"
+            >
+              📄 Export PDF / Print
+            </button>
+            <button
+              type="button"
+              onClick={generateReport}
+              className="rounded-xl bg-white px-6 py-3 text-sm font-bold text-slate-950 transition hover:bg-blue-50"
+            >
+              Generate Report
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Report Settings */}
+      <section className="mt-7 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
+          <div>
+            <h2 className="text-lg font-bold">
+              Report Settings
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Select the report type and analysis
+              period.
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label
+                htmlFor="report-type"
+                className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500"
+              >
+                Report Type
+              </label>
+
+              <select
+                id="report-type"
+                value={reportType}
+                onChange={(event) =>
+                  setReportType(event.target.value)
+                }
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+              >
+                <option>Executive Summary</option>
+                <option>Sentiment Analysis</option>
+                <option>Theme Analysis</option>
+                <option>Customer Experience</option>
+              </select>
             </div>
 
-            <button
-              type="button"
-              onClick={
-                refreshReports
-              }
-              disabled={
-                loading
-              }
-              className="flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-            >
-              <RefreshIcon
-                spinning={
-                  loading
+            <div>
+              <label
+                htmlFor="report-period"
+                className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500"
+              >
+                Report Period
+              </label>
+
+              <select
+                id="report-period"
+                value={period}
+                onChange={(event) =>
+                  setPeriod(
+                    event.target
+                      .value as ReportPeriod,
+                  )
                 }
-              />
-
-              Refresh
-            </button>
-
-            <button
-              type="button"
-              onClick={
-                exportCsv
-              }
-              disabled={
-                loading ||
-                currentFeedback.length ===
-                  0
-              }
-              className="flex h-9 items-center gap-2 rounded-xl bg-slate-950 px-3.5 text-[11px] font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-blue-600 dark:hover:bg-blue-500"
-            >
-              <DownloadIcon />
-
-              Export CSV
-            </button>
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+              >
+                <option>Last 7 Days</option>
+                <option>Last 30 Days</option>
+                <option>Last 3 Months</option>
+              </select>
+            </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        {error && (
-          <ErrorBanner
-            message={
-              error
-            }
-            onRetry={
-              refreshReports
-            }
-          />
-        )}
+      {/* Generated Message */}
+      {isGenerated && (
+        <section className="mt-5 flex flex-col justify-between gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 sm:flex-row sm:items-center">
+          <div>
+            <p className="font-bold text-emerald-800">
+              Report generated successfully
+            </p>
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
-            label="Feedback"
-            value={
-              loading
-                ? "—"
-                : report.total.toLocaleString()
-            }
-            helper={`Last ${rangeDays} days`}
-            icon={
-              <FeedbackIcon />
-            }
-            tone="blue"
-          />
+            <p className="mt-1 text-sm text-emerald-700">
+              {reportType} for {period} is ready.
+            </p>
+          </div>
 
-          <MetricCard
-            label="Classified"
-            value={
-              loading
-                ? "—"
-                : `${report.classificationCoverage}%`
-            }
-            helper={`${report.classified} of ${report.total} records`}
-            icon={
-              <AnalysisIcon />
-            }
-            tone="violet"
-          />
-
-          <MetricCard
-            label="Positive sentiment"
-            value={
-              loading
-                ? "—"
-                : report.classified >
-                    0
-                  ? `${report.positiveRate}%`
-                  : "—"
-            }
-            helper={
-              report.classified >
-              0
-                ? `${report.positive} positive records`
-                : "Awaiting classification"
-            }
-            icon={
-              <PositiveIcon />
-            }
-            tone="emerald"
-          />
-
-          <MetricCard
-            label="Themes"
-            value={
-              loading
-                ? "—"
-                : report.themeCount.toLocaleString()
-            }
-            helper={`${report.themeCoverage}% feedback coverage`}
-            icon={
-              <ThemeIcon />
-            }
-            tone="amber"
-          />
-        </section>
-
-        <section className="grid gap-5 xl:grid-cols-[1.4fr_0.8fr]">
-          <Panel
-            title="Feedback volume"
-            description={`Feedback activity across the selected ${rangeDays}-day period.`}
+          <button
+            type="button"
+            onClick={downloadReport}
+            className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-emerald-700"
           >
-            {loading ? (
-              <Skeleton className="h-[275px]" />
-            ) : report.total ===
-              0 ? (
-              <EmptyState
-                icon={
-                  <FeedbackIcon />
-                }
-                title="No report data yet"
-                description="Feedback volume will appear after records are added to the workspace."
-                href="/feedback"
-                action="Add feedback"
-              />
-            ) : (
-              <div>
-                <div className="mb-6 flex items-end justify-between gap-4">
-                  <div>
-                    <p className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-white">
-                      {
-                        report.total
-                      }
-                    </p>
+            Download Report
+          </button>
+        </section>
+      )}
 
-                    <p className="mt-1 text-[11px] text-slate-400">
-                      {report.total ===
-                      1
-                        ? "feedback record"
-                        : "feedback records"}
-                    </p>
+      {/* KPI Cards */}
+      <section className="mt-7 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          {
+            label: "Total Feedback",
+            value: "1,248",
+            detail: "+14.8% from previous period",
+            badge: "01",
+            style:
+              "bg-blue-100 text-blue-700",
+          },
+          {
+            label: "Positive Sentiment",
+            value: "62%",
+            detail: "+7.2% customer satisfaction",
+            badge: "02",
+            style:
+              "bg-emerald-100 text-emerald-700",
+          },
+          {
+            label: "Negative Sentiment",
+            value: "15%",
+            detail: "-2.4% from previous period",
+            badge: "03",
+            style:
+              "bg-rose-100 text-rose-700",
+          },
+          {
+            label: "Active Themes",
+            value: "12",
+            detail: "3 emerging themes found",
+            badge: "04",
+            style:
+              "bg-violet-100 text-violet-700",
+          },
+        ].map((item) => (
+          <article
+            key={item.label}
+            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+          >
+            <div className="flex items-center justify-between">
+              <span
+                className={`flex h-11 w-11 items-center justify-center rounded-xl text-xs font-bold ${item.style}`}
+              >
+                {item.badge}
+              </span>
+
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Live
+              </span>
+            </div>
+
+            <p className="mt-5 text-sm font-medium text-slate-500">
+              {item.label}
+            </p>
+
+            <p className="mt-1 text-3xl font-bold text-slate-950">
+              {item.value}
+            </p>
+
+            <p className="mt-2 text-xs text-slate-400">
+              {item.detail}
+            </p>
+          </article>
+        ))}
+      </section>
+
+      {/* Sentiment and Highlights */}
+      <section className="mt-7 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        {/* Sentiment Analysis */}
+        <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold">
+                Sentiment Analysis
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Customer sentiment distribution for{" "}
+                {period.toLowerCase()}.
+              </p>
+            </div>
+
+            <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">
+              1,248 responses
+            </span>
+          </div>
+
+          <div className="mt-8 space-y-6">
+            {sentimentData.map((item) => (
+              <div key={item.name}>
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`rounded-lg px-2.5 py-1 text-xs font-bold ${item.backgroundStyle} ${item.textStyle}`}
+                    >
+                      {item.name}
+                    </span>
                   </div>
 
-                  <span className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
-                    {
-                      selectedRange
-                    }
+                  <span className="text-sm font-bold text-slate-700">
+                    {item.value}%
                   </span>
                 </div>
 
-                <div className="relative h-[220px]">
-                  <div className="absolute inset-0 flex flex-col justify-between">
-                    {[1, 2, 3, 4].map(
-                      (
-                        line,
-                      ) => (
-                        <div
-                          key={
-                            line
-                          }
-                          className="border-t border-dashed border-slate-100 dark:border-slate-800"
-                        />
-                      ),
-                    )}
-                  </div>
-
+                <div className="h-3 overflow-hidden rounded-full bg-slate-100">
                   <div
-                    className={`relative grid h-full items-end gap-3 ${
-                      selectedRange === "7D"
-                        ? "grid-cols-7"
-                        : "grid-cols-6"
-                    }`}
-                  >
-                    {activity.map(
-                      (
-                        item,
-                        index,
-                      ) => {
-                        const height =
-                          item.count ===
-                          0
-                            ? 3
-                            : Math.max(
-                                14,
-                                Math.round(
-                                  (item.count /
-                                    maxActivity) *
-                                    100,
-                                ),
-                              );
-
-                        return (
-                          <div
-                            key={`${item.label}-${index}`}
-                            className="flex h-full flex-col items-center justify-end"
-                          >
-                            <span className="mb-2 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                              {
-                                item.count
-                              }
-                            </span>
-
-                            <div className="flex h-[160px] w-full max-w-14 items-end">
-                              <div
-                                className={`w-full rounded-t-lg transition-all ${
-                                  item.count >
-                                  0
-                                    ? "bg-blue-600"
-                                    : "bg-slate-100 dark:bg-slate-800"
-                                }`}
-                                style={{
-                                  height: `${height}%`,
-                                }}
-                              />
-                            </div>
-
-                            <span className="mt-2 max-w-full truncate text-[10px] text-slate-400">
-                              {
-                                item.label
-                              }
-                            </span>
-                          </div>
-                        );
-                      },
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </Panel>
-
-          <Panel
-            title="Sentiment distribution"
-            description="Sentiment across classified feedback records."
-          >
-            {loading ? (
-              <Skeleton className="h-[275px]" />
-            ) : report.classified ===
-              0 ? (
-              <div className="flex min-h-[275px] flex-col items-center justify-center px-4 text-center">
-                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-400 dark:bg-slate-800">
-                  <AnalysisIcon />
-                </span>
-
-                <p className="mt-4 text-sm font-semibold text-slate-900 dark:text-white">
-                  No sentiment data
-                </p>
-
-                <p className="mt-2 max-w-xs text-[11px] leading-5 text-slate-500 dark:text-slate-400">
-                  Sentiment distribution will appear when feedback classification is available.
-                </p>
-
-                {report.unclassified >
-                  0 && (
-                  <span className="mt-4 rounded-full bg-amber-50 px-3 py-1.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
-                    {
-                      report.unclassified
-                    }{" "}
-                    pending
-                  </span>
-                )}
-              </div>
-            ) : (
-              <div>
-                <div className="flex justify-center py-3">
-                  <div
-                    className="relative flex h-40 w-40 items-center justify-center rounded-full"
+                    className={`h-full rounded-full ${item.barStyle}`}
                     style={{
-                      background: `conic-gradient(
-                        #10b981 0 ${report.positiveRate}%,
-                        #f59e0b ${report.positiveRate}% ${
-                          report.positiveRate +
-                          report.neutralRate
-                        }%,
-                        #f43f5e ${
-                          report.positiveRate +
-                          report.neutralRate
-                        }% 100%
-                      )`,
+                      width: `${item.value}%`,
                     }}
-                  >
-                    <div className="flex h-28 w-28 flex-col items-center justify-center rounded-full bg-white dark:bg-slate-900">
-                      <span className="text-2xl font-semibold text-slate-950 dark:text-white">
-                        {
-                          report.classified
-                        }
-                      </span>
-
-                      <span className="mt-1 text-[9px] font-semibold uppercase tracking-wider text-slate-400">
-                        Classified
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-5 space-y-3">
-                  <SentimentRow
-                    label="Positive"
-                    count={
-                      report.positive
-                    }
-                    percentageValue={
-                      report.positiveRate
-                    }
-                    color="bg-emerald-500"
-                  />
-
-                  <SentimentRow
-                    label="Neutral"
-                    count={
-                      report.neutral
-                    }
-                    percentageValue={
-                      report.neutralRate
-                    }
-                    color="bg-amber-400"
-                  />
-
-                  <SentimentRow
-                    label="Negative"
-                    count={
-                      report.negative
-                    }
-                    percentageValue={
-                      report.negativeRate
-                    }
-                    color="bg-rose-500"
                   />
                 </div>
               </div>
-            )}
-          </Panel>
-        </section>
+            ))}
+          </div>
 
-        <section className="grid gap-5 xl:grid-cols-2">
-          <Panel
-            title="Top themes"
-            description="Most frequently linked themes in this period."
-            action={
-              <Link
-                href="/feedback"
-                className="text-[11px] font-semibold text-blue-600 hover:text-blue-500 dark:text-blue-400"
-              >
-                View feedback →
-              </Link>
-            }
-          >
-            {loading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-14" />
-                <Skeleton className="h-14" />
-                <Skeleton className="h-14" />
-              </div>
-            ) : report.themes
-                .length ===
-              0 ? (
-              <EmptyState
-                icon={
-                  <ThemeIcon />
-                }
-                title="No themes detected"
-                description="Theme rankings will appear after feedback records receive linked themes."
-                href="/feedback"
-                action="View feedback"
-              />
-            ) : (
-              <div className="space-y-3">
-                {report.themes.map(
-                  (
-                    [
-                      theme,
-                      count,
-                    ],
-                    index,
-                  ) => (
-                    <div
-                      key={
-                        theme
-                      }
-                      className="flex items-center gap-4 rounded-xl border border-slate-200 p-3.5 dark:border-slate-800"
-                    >
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[11px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-300">
-                        {index +
-                          1}
-                      </span>
+          <div className="mt-8 grid gap-4 border-t border-slate-200 pt-6 sm:grid-cols-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                Strongest Area
+              </p>
 
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="truncate text-xs font-semibold text-slate-800 dark:text-slate-200">
-                            {
-                              theme
-                            }
-                          </span>
-
-                          <span className="text-xs font-semibold text-slate-950 dark:text-white">
-                            {
-                              count
-                            }
-                          </span>
-                        </div>
-
-                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                          <div
-                            className="h-full rounded-full bg-blue-500"
-                            style={{
-                              width: `${Math.max(
-                                8,
-                                percentage(
-                                  count,
-                                  report.total,
-                                ),
-                              )}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ),
-                )}
-              </div>
-            )}
-          </Panel>
-
-          <Panel
-            title="Channel distribution"
-            description="Feedback sources represented in the selected period."
-          >
-            {loading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-14" />
-                <Skeleton className="h-14" />
-                <Skeleton className="h-14" />
-              </div>
-            ) : report.channels
-                .length ===
-              0 ? (
-              <EmptyState
-                icon={
-                  <ChannelIcon />
-                }
-                title="No source data"
-                description="Feedback channel distribution will appear after records are available."
-                href="/feedback"
-                action="Add feedback"
-              />
-            ) : (
-              <div className="space-y-3">
-                {report.channels.map(
-                  (
-                    [
-                      channel,
-                      count,
-                    ],
-                  ) => {
-                    const share =
-                      percentage(
-                        count,
-                        report.total,
-                      );
-
-                    return (
-                      <div
-                        key={
-                          channel
-                        }
-                        className="rounded-xl border border-slate-200 p-3.5 dark:border-slate-800"
-                      >
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="flex min-w-0 items-center gap-3">
-                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300">
-                              <ChannelIcon />
-                            </span>
-
-                            <span className="truncate text-xs font-semibold text-slate-800 dark:text-slate-200">
-                              {
-                                channel
-                              }
-                            </span>
-                          </div>
-
-                          <div className="text-right">
-                            <p className="text-xs font-semibold text-slate-950 dark:text-white">
-                              {
-                                count
-                              }
-                            </p>
-
-                            <p className="mt-0.5 text-[9px] text-slate-400">
-                              {
-                                share
-                              }
-                              %
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                          <div
-                            className="h-full rounded-full bg-blue-500"
-                            style={{
-                              width: `${share}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  },
-                )}
-              </div>
-            )}
-          </Panel>
-        </section>
-
-        <section className="grid gap-5 xl:grid-cols-[0.75fr_1.25fr]">
-          <Panel
-            title="Data coverage"
-            description="How much of this report has structured insight data."
-          >
-            <div className="space-y-5">
-              <CoverageRow
-                label="Sentiment classification"
-                value={
-                  report.classificationCoverage
-                }
-                detail={`${report.classified}/${report.total}`}
-                color="bg-violet-500"
-              />
-
-              <CoverageRow
-                label="Theme coverage"
-                value={
-                  report.themeCoverage
-                }
-                detail={`${report.themeCount} themes`}
-                color="bg-blue-500"
-              />
-
-              <div className="border-t border-slate-100 pt-5 dark:border-slate-800">
-                <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                  Workflow
-                </p>
-
-                <div className="grid grid-cols-3 gap-2">
-                  <MiniStat
-                    label="New"
-                    value={
-                      report.newCount
-                    }
-                  />
-
-                  <MiniStat
-                    label="Reviewed"
-                    value={
-                      report.reviewed
-                    }
-                  />
-
-                  <MiniStat
-                    label="Actioned"
-                    value={
-                      report.actioned
-                    }
-                  />
-                </div>
-              </div>
+              <p className="mt-2 font-bold">
+                User Experience
+              </p>
             </div>
-          </Panel>
 
-          <Panel
-            title="Needs attention"
-            description="Recent negative or unreviewed feedback in this period."
-            action={
-              <Link
-                href="/feedback"
-                className="text-[11px] font-semibold text-blue-600 hover:text-blue-500 dark:text-blue-400"
-              >
-                Open inbox →
-              </Link>
-            }
-          >
-            {loading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-20" />
-                <Skeleton className="h-20" />
-              </div>
-            ) : report
-                .needsAttention
-                .length ===
-              0 ? (
-              <div className="flex min-h-[180px] flex-col items-center justify-center text-center">
-                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-300">
-                  <CheckIcon />
-                </span>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                Urgent Issue
+              </p>
 
-                <p className="mt-4 text-sm font-semibold text-slate-900 dark:text-white">
-                  Nothing requiring attention
-                </p>
+              <p className="mt-2 font-bold">
+                Checkout Speed
+              </p>
+            </div>
 
-                <p className="mt-2 max-w-sm text-[11px] leading-5 text-slate-500 dark:text-slate-400">
-                  No recent negative or unreviewed feedback is available in this period.
-                </p>
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                {report.needsAttention.map(
-                  (
-                    item,
-                  ) => (
-                    <article
-                      key={
-                        item.id
-                      }
-                      className="py-4 first:pt-0 last:pb-0"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-semibold text-slate-900 dark:text-white">
-                            {item.customerName ||
-                              "Anonymous Customer"}
-                          </p>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                Emerging Theme
+              </p>
 
-                          <p className="mt-1 text-[10px] text-slate-400">
-                            {item.channel ||
-                              "Unknown source"}{" "}
-                            ·{" "}
-                            {formatDate(
-                              item.createdAt,
-                            )}
-                          </p>
-                        </div>
+              <p className="mt-2 font-bold">
+                Payment Status
+              </p>
+            </div>
+          </div>
+        </article>
 
-                        <AttentionBadge
-                          sentiment={
-                            item.sentiment
-                          }
-                          status={
-                            item.status
-                          }
-                        />
-                      </div>
+        {/* Executive Summary */}
+        <aside className="rounded-2xl bg-slate-950 p-6 text-white shadow-lg">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold">
+              Executive Summary
+            </h2>
 
-                      <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-600 dark:text-slate-300">
-                        {
-                          item.content
-                        }
-                      </p>
-                    </article>
-                  ),
-                )}
-              </div>
-            )}
-          </Panel>
-        </section>
-      </div>
-    </LoopShell>
-  );
-}
+            <span className="rounded-full bg-blue-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider">
+              AI
+            </span>
+          </div>
 
-function Panel({
-  title,
-  description,
-  action,
-  children,
-}: {
-  title: string;
-  description: string;
-  action?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-950/[0.02] dark:border-slate-800 dark:bg-slate-900">
-      <div className="mb-5 flex items-start justify-between gap-4">
+          <p className="mt-5 text-sm leading-7 text-slate-300">
+            Overall customer sentiment remains
+            positive. Users appreciate the clean
+            interface and quick support resolution.
+          </p>
+
+          <p className="mt-4 text-sm leading-7 text-slate-300">
+            Checkout performance and delayed payment
+            confirmation are the most important
+            issues requiring immediate attention.
+          </p>
+
+          <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4">
+            <p className="text-xs font-bold uppercase tracking-wider text-blue-300">
+              Primary Opportunity
+            </p>
+
+            <p className="mt-2 text-sm font-semibold leading-6">
+              Improve transaction visibility and
+              reduce checkout response time.
+            </p>
+          </div>
+
+          <p className="mt-5 text-xs leading-5 text-slate-500">
+            This is frontend demo content. Actual AI
+            summaries will later be generated using
+            customer-feedback evidence.
+          </p>
+        </aside>
+      </section>
+
+      {/* Top Themes */}
+      <section className="mt-7 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div>
-          <h2 className="text-sm font-semibold text-slate-950 dark:text-white">
-            {title}
+          <h2 className="text-lg font-bold">
+            Top Feedback Themes
           </h2>
 
-          <p className="mt-1 text-[11px] leading-5 text-slate-500 dark:text-slate-400">
-            {
-              description
-            }
+          <p className="mt-1 text-sm text-slate-500">
+            Frequently discussed topics across all
+            customer-feedback sources.
           </p>
         </div>
 
-        {action && (
-          <div className="shrink-0">
-            {action}
-          </div>
-        )}
-      </div>
+        <div className="mt-7 space-y-5">
+          {topThemes.map((theme, index) => (
+            <article
+              key={theme.name}
+              className="grid gap-4 rounded-xl border border-slate-200 p-4 md:grid-cols-[40px_220px_minmax(0,1fr)_100px_80px] md:items-center"
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-xs font-bold text-blue-700">
+                {index + 1}
+              </span>
 
-      {children}
-    </section>
-  );
-}
+              <div>
+                <p className="font-semibold">
+                  {theme.name}
+                </p>
 
-function MetricCard({
-  label,
-  value,
-  helper,
-  icon,
-  tone,
-}: {
-  label: string;
-  value: string;
-  helper: string;
-  icon: ReactNode;
-  tone:
-    | "blue"
-    | "violet"
-    | "emerald"
-    | "amber";
-}) {
-  const styles = {
-    blue:
-      "bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300",
+                <p className="mt-1 text-xs text-slate-400">
+                  Customer-feedback theme
+                </p>
+              </div>
 
-    violet:
-      "bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300",
+              <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full rounded-full bg-blue-600"
+                  style={{
+                    width: `${theme.percentage}%`,
+                  }}
+                />
+              </div>
 
-    emerald:
-      "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300",
+              <p className="text-sm font-semibold text-slate-600">
+                {theme.mentions} mentions
+              </p>
 
-    amber:
-      "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300",
-  };
+              <span
+                className={
+                  theme.trend.startsWith("+")
+                    ? "rounded-full bg-emerald-100 px-2.5 py-1 text-center text-xs font-bold text-emerald-700"
+                    : "rounded-full bg-rose-100 px-2.5 py-1 text-center text-xs font-bold text-rose-700"
+                }
+              >
+                {theme.trend}
+              </span>
+            </article>
+          ))}
+        </div>
+      </section>
 
-  return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-950/[0.02] dark:border-slate-800 dark:bg-slate-900">
-      <div className="flex items-start justify-between gap-4">
+      {/* Recommendations */}
+      <section className="mt-7">
         <div>
-          <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-            {label}
-          </p>
+          <h2 className="text-lg font-bold">
+            Recommended Actions
+          </h2>
 
-          <p className="mt-3 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">
-            {value}
-          </p>
-        </div>
-
-        <span
-          className={`flex h-9 w-9 items-center justify-center rounded-xl ${styles[tone]}`}
-        >
-          {icon}
-        </span>
-      </div>
-
-      <p className="mt-3 text-[10px] text-slate-400">
-        {helper}
-      </p>
-    </article>
-  );
-}
-
-function SentimentRow({
-  label,
-  count,
-  percentageValue,
-  color,
-}: {
-  label: string;
-  count: number;
-  percentageValue: number;
-  color: string;
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      <span
-        className={`h-2 w-2 rounded-full ${color}`}
-      />
-
-      <span className="flex-1 text-[11px] font-medium text-slate-600 dark:text-slate-300">
-        {label}
-      </span>
-
-      <span className="text-[10px] text-slate-400">
-        {count}
-      </span>
-
-      <span className="w-9 text-right text-[11px] font-semibold text-slate-950 dark:text-white">
-        {percentageValue}%
-      </span>
-    </div>
-  );
-}
-
-function CoverageRow({
-  label,
-  value,
-  detail,
-  color,
-}: {
-  label: string;
-  value: number;
-  detail: string;
-  color: string;
-}) {
-  return (
-    <div>
-      <div className="mb-2 flex items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-            {label}
-          </p>
-
-          <p className="mt-0.5 text-[10px] text-slate-400">
-            {detail}
+          <p className="mt-1 text-sm text-slate-500">
+            Suggested improvements based on the
+            current feedback analysis.
           </p>
         </div>
 
-        <span className="text-xs font-semibold text-slate-950 dark:text-white">
-          {value}%
-        </span>
-      </div>
+        <div className="mt-5 grid gap-5 lg:grid-cols-2">
+          {recommendations.map(
+            (recommendation, index) => (
+              <article
+                key={recommendation.title}
+                className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-bold ${recommendation.style}`}
+                  >
+                    {recommendation.priority} Priority
+                  </span>
 
-      <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-        <div
-          className={`h-full rounded-full ${color}`}
-          style={{
-            width: `${value}%`,
-          }}
-        />
-      </div>
-    </div>
-  );
-}
+                  <span className="text-sm font-bold text-slate-300">
+                    0{index + 1}
+                  </span>
+                </div>
 
-function MiniStat({
-  label,
-  value,
-}: {
-  label: string;
-  value: number;
-}) {
-  return (
-    <div className="rounded-xl bg-slate-50 px-2 py-3 text-center dark:bg-slate-800/60">
-      <p className="text-lg font-semibold text-slate-950 dark:text-white">
-        {value}
-      </p>
+                <h3 className="mt-5 text-lg font-bold">
+                  {recommendation.title}
+                </h3>
 
-      <p className="mt-1 text-[9px] font-medium text-slate-400">
-        {label}
-      </p>
-    </div>
-  );
-}
+                <p className="mt-3 text-sm leading-6 text-slate-500">
+                  {recommendation.description}
+                </p>
 
-function AttentionBadge({
-  sentiment,
-  status,
-}: {
-  sentiment?: Sentiment | null;
-  status?: FeedbackStatus | null;
-}) {
-  if (
-    sentiment ===
-    "NEGATIVE"
-  ) {
-    return (
-      <span className="shrink-0 rounded-full bg-rose-50 px-2.5 py-1 text-[9px] font-semibold text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
-        Negative
-      </span>
-    );
-  }
+                <div className="mt-5 rounded-xl bg-slate-50 p-4">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Expected Impact
+                  </p>
 
-  return (
-    <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[9px] font-semibold text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">
-      {status ===
-      "REVIEWED"
-        ? "Reviewed"
-        : status ===
-            "ACTIONED"
-          ? "Actioned"
-          : "New"}
-    </span>
-  );
-}
-
-function EmptyState({
-  icon,
-  title,
-  description,
-  href,
-  action,
-}: {
-  icon: ReactNode;
-  title: string;
-  description: string;
-  href: string;
-  action: string;
-}) {
-  return (
-    <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-6 text-center dark:border-slate-700 dark:bg-slate-800/20">
-      <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-slate-400 shadow-sm dark:bg-slate-800">
-        {icon}
-      </span>
-
-      <p className="mt-4 text-sm font-semibold text-slate-900 dark:text-white">
-        {title}
-      </p>
-
-      <p className="mt-2 max-w-sm text-[11px] leading-5 text-slate-500 dark:text-slate-400">
-        {
-          description
-        }
-      </p>
-
-      <Link
-        href={href}
-        className="mt-4 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-      >
-        {action}
-      </Link>
-    </div>
-  );
-}
-
-function ErrorBanner({
-  message,
-  onRetry,
-}: {
-  message: string;
-  onRetry: () => void;
-}) {
-  return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-rose-900/50 dark:bg-rose-950/20">
-      <div>
-        <p className="text-xs font-semibold text-rose-700 dark:text-rose-300">
-          Reports unavailable
-        </p>
-
-        <p className="mt-1 text-[11px] text-rose-600 dark:text-rose-400">
-          {message}
-        </p>
-      </div>
-
-      <button
-        type="button"
-        onClick={
-          onRetry
-        }
-        className="rounded-lg border border-rose-200 bg-white px-3 py-2 text-[11px] font-semibold text-rose-700 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-300"
-      >
-        Retry
-      </button>
-    </div>
-  );
-}
-
-function Skeleton({
-  className,
-}: {
-  className: string;
-}) {
-  return (
-    <div
-      className={`animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800 ${className}`}
-    />
-  );
-}
-
-function RefreshIcon({
-  spinning,
-}: {
-  spinning: boolean;
-}) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      className={`h-3.5 w-3.5 ${
-        spinning
-          ? "animate-spin"
-          : ""
-      }`}
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        d="M20 11a8 8 0 0 0-14.9-4M4 5v5h5M4 13a8 8 0 0 0 14.9 4M20 19v-5h-5"
-      />
-    </svg>
-  );
-}
-
-function DownloadIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      className="h-3.5 w-3.5"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14"
-      />
-    </svg>
-  );
-}
-
-function FeedbackIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      className="h-4 w-4"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M5 5h14v10H9l-4 4V5Z"
-      />
-
-      <path
-        strokeLinecap="round"
-        d="M8 9h8M8 12h5"
-      />
-    </svg>
-  );
-}
-
-function AnalysisIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      className="h-4 w-4"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 18l-1.8-6.2L5 10l5.2-1.8L12 3Z"
-      />
-    </svg>
-  );
-}
-
-function PositiveIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      className="h-4 w-4"
-      aria-hidden="true"
-    >
-      <circle
-        cx="12"
-        cy="12"
-        r="8"
-      />
-
-      <path
-        strokeLinecap="round"
-        d="M8.5 14s1.2 2 3.5 2 3.5-2 3.5-2M9 9.5h.01M15 9.5h.01"
-      />
-    </svg>
-  );
-}
-
-function ThemeIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      className="h-4 w-4"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="m12 4 8 4-8 4-8-4 8-4ZM4 13l8 4 8-4M4 18l8 4 8-4"
-      />
-    </svg>
-  );
-}
-
-function ChannelIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      className="h-4 w-4"
-      aria-hidden="true"
-    >
-      <circle
-        cx="6"
-        cy="12"
-        r="2"
-      />
-
-      <circle
-        cx="18"
-        cy="6"
-        r="2"
-      />
-
-      <circle
-        cx="18"
-        cy="18"
-        r="2"
-      />
-
-      <path
-        strokeLinecap="round"
-        d="m8 11 8-4M8 13l8 4"
-      />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className="h-5 w-5"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="m6 12 4 4 8-8"
-      />
-    </svg>
+                  <p className="mt-1 text-sm font-semibold text-slate-700">
+                    {recommendation.impact}
+                  </p>
+                </div>
+              </article>
+            ),
+          )}
+        </div>
+      </section>
+    </LoopShell>
   );
 }
