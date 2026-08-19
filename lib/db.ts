@@ -3,9 +3,16 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import "dotenv/config";
 
-const connectionString =
-  process.env.DATABASE_URL ||
-  "postgresql://postgres.vqwnrsxtmifkykdxegyu:Loop%401615%401@aws-1-ap-south-1.pooler.supabase.com:6543/postgres?pgbouncer=true";
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  // No fallback on purpose: a hardcoded connection string here previously
+  // shipped a real database password into source control. Fail loudly at
+  // startup instead of silently connecting to (or leaking) a credential.
+  throw new Error(
+    "DATABASE_URL is not set. Add it to your .env file — there is no fallback connection string.",
+  );
+}
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
