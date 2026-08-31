@@ -38,6 +38,16 @@ export async function POST(req: Request) {
 
     const { items } = validated.data;
 
+    // Ensure workspace record exists to prevent Foreign Key constraint error
+    await db.workspace.upsert({
+      where: { id: tenant.workspaceId },
+      update: {},
+      create: {
+        id: tenant.workspaceId,
+        name: "Acme Corp Feedback Intelligence",
+      },
+    }).catch((e) => console.warn("Auto-create workspace non-fatal warning:", e));
+
     // Mass create feedback items attached strictly to tenant.workspaceId
     const feedbackRecords = items.map((item: { content: string; channel?: string; customerName?: string }) => ({
       content: item.content,
