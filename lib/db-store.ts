@@ -23,51 +23,58 @@ export interface FeedbackItem {
   }>;
 }
 
+const POSITIVE_WORDS = new Set([
+  "amazing", "awesome", "great", "love", "loved", "fast", "resolved", "excellent", "superb",
+  "helpful", "fantastic", "wonderful", "best", "good", "improvement", "improvements", "improved",
+  "saves", "saved", "easy", "easier", "perfect", "smooth", "happy", "delighted", "impressed",
+  "top-notch", "outstanding", "brilliant", "valuable", "efficient", "seamless", "favorite",
+  "clean", "intuitive", "quick", "thanks", "thank", "nice", "useful", "like", "liked",
+  "satisfied", "enjoy", "enjoyed", "recommend", "flawless", "super"
+]);
+
+const NEGATIVE_WORDS = new Set([
+  "slow", "error", "errors", "fail", "failed", "failure", "broken", "bad", "terrible",
+  "horrible", "crash", "crashed", "bug", "bugs", "frustrated", "frustrating", "disappointed",
+  "disappointing", "delayed", "delay", "poor", "useless", "stuck", "waste", "refund",
+  "annoying", "expensive", "complicated", "difficult", "worst", "hate", "problem", "problems",
+  "unable", "cannot", "cant", "freeze", "freezing", "dislike", "disliked", "awful",
+  "unacceptable", "garbage", "junk", "clunky", "glitch", "glitchy", "down", "downtime"
+]);
+
 export function quickClassifySentiment(content: string): {
   sentiment: "POSITIVE" | "NEGATIVE" | "NEUTRAL";
   sentimentScore: number;
   themeName: string;
 } {
   const text = (content || "").toLowerCase();
+  const words = text.replace(/[^\w\s]/g, " ").split(/\s+/).filter(Boolean);
 
-  const posKeywords = [
-    "amazing", "awesome", "great", "love", "fast", "resolved", "excellent", "superb",
-    "helpful", "fantastic", "wonderful", "best", "good", "improvement", "improvements",
-    "saves hours", "easy", "perfect", "smooth", "happy", "delighted", "impressed",
-    "top-notch", "outstanding", "brilliant", "valuable", "efficient", "seamless",
-    "favorite", "clean", "intuitive", "speed", "quick", "thanks", "thank you", "nice",
-    "useful", "like", "liked", "satisfied", "enjoy", "enjoyed", "analyzing"
-  ];
+  let posScore = 0;
+  let negScore = 0;
 
-  const negKeywords = [
-    "slow", "issue", "issues", "error", "errors", "lag", "lagging", "fail", "failed",
-    "broken", "bad", "terrible", "horrible", "crash", "crashed", "bug", "bugs",
-    "frustrated", "disappointed", "delayed", "delay", "poor", "useless", "stuck",
-    "waste", "refund", "annoying", "expensive", "complicated", "difficult", "worst",
-    "hate", "problem", "problems", "unable", "cannot", "can't", "freeze", "freezing",
-    "dislike", "disliked", "awful"
-  ];
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    const prevWords = words.slice(Math.max(0, i - 3), i).join(" ");
+    const isNegated = /\b(not|no|never|dont|doesnt|didnt|cannot|cant|wont)\b/.test(prevWords);
 
-  let posCount = 0;
-  let negCount = 0;
-
-  for (const kw of posKeywords) {
-    if (text.includes(kw)) posCount++;
-  }
-
-  for (const kw of negKeywords) {
-    if (text.includes(kw)) negCount++;
+    if (POSITIVE_WORDS.has(w)) {
+      if (isNegated) negScore += 1.5;
+      else posScore += 1.0;
+    } else if (NEGATIVE_WORDS.has(w)) {
+      if (isNegated) posScore += 1.0;
+      else negScore += 1.5;
+    }
   }
 
   let sentiment: "POSITIVE" | "NEGATIVE" | "NEUTRAL" = "NEUTRAL";
   let sentimentScore = 0.0;
 
-  if (posCount > negCount) {
+  if (posScore > negScore) {
     sentiment = "POSITIVE";
-    sentimentScore = Math.min(0.95, 0.65 + posCount * 0.1);
-  } else if (negCount > posCount) {
+    sentimentScore = Math.min(0.95, 0.65 + posScore * 0.1);
+  } else if (negScore > posScore) {
     sentiment = "NEGATIVE";
-    sentimentScore = Math.max(-0.95, -0.65 - negCount * 0.1);
+    sentimentScore = Math.max(-0.95, -0.65 - negScore * 0.1);
   }
 
   let themeName = "Product Quality";

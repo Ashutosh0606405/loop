@@ -1,32 +1,13 @@
 import { db } from "@/lib/db";
-import { feedbackStore } from "@/lib/db-store";
+import { feedbackStore, quickClassifySentiment } from "@/lib/db-store";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY;
-
-// Comprehensive Sentiment & Keyword Dictionary
-const POSITIVE_KEYWORDS = [
-  "amazing", "awesome", "great", "love", "fast", "resolved", "excellent", "superb",
-  "helpful", "fantastic", "wonderful", "best", "good", "improvement", "improvements",
-  "saves hours", "easy", "perfect", "smooth", "happy", "delighted", "impressed",
-  "top-notch", "outstanding", "brilliant", "valuable", "efficient", "seamless",
-  "favorite", "clean", "intuitive", "speed", "quick", "thanks", "thank you", "nice"
-];
-
-const NEGATIVE_KEYWORDS = [
-  "slow", "issue", "issues", "error", "errors", "lag", "lagging", "fail", "failed",
-  "broken", "bad", "terrible", "horrible", "crash", "crashed", "bug", "bugs",
-  "frustrated", "disappointed", "delayed", "delay", "poor", "useless", "stuck",
-  "waste", "refund", "annoying", "expensive", "complicated", "difficult", "worst",
-  "hate", "problem", "problems", "unable", "cannot", "can't", "freeze", "freezing"
-];
 
 export async function classifyFeedbackItem(feedback: any, workspaceId: string) {
   let sentiment: "POSITIVE" | "NEGATIVE" | "NEUTRAL" = "NEUTRAL";
   let sentimentScore = 0;
   let extractedThemes: string[] = [];
   let classifiedByAI = false;
-
-  const contentText = String(feedback.content || "").toLowerCase();
 
   // 1. Try Google Gemini API if key is present
   if (GEMINI_API_KEY && GEMINI_API_KEY !== "mock-key" && !GEMINI_API_KEY.includes("your-")) {
@@ -68,47 +49,12 @@ Schema:
     }
   }
 
-  // 2. High-Accuracy Rule & Natural Language Processing Engine (Fallback & Direct Classifier)
+  // 2. High-Accuracy Word-Boundary & Negation-Aware NLP Engine
   if (!classifiedByAI) {
-    let posScore = 0;
-    let negScore = 0;
-
-    for (const kw of POSITIVE_KEYWORDS) {
-      if (contentText.includes(kw)) posScore += 1;
-    }
-
-    for (const kw of NEGATIVE_KEYWORDS) {
-      if (contentText.includes(kw)) negScore += 1;
-    }
-
-    if (posScore > negScore) {
-      sentiment = "POSITIVE";
-      sentimentScore = Math.min(0.95, 0.6 + posScore * 0.15);
-    } else if (negScore > posScore) {
-      sentiment = "NEGATIVE";
-      sentimentScore = Math.max(-0.95, -0.6 - negScore * 0.15);
-    } else {
-      sentiment = "NEUTRAL";
-      sentimentScore = 0.0;
-    }
-
-    // Dynamic Theme Matching
-    if (contentText.includes("speed") || contentText.includes("slow") || contentText.includes("lag") || contentText.includes("fast") || contentText.includes("load")) {
-      extractedThemes.push("Application Speed");
-    }
-    if (contentText.includes("payment") || contentText.includes("checkout") || contentText.includes("card") || contentText.includes("price") || contentText.includes("cost")) {
-      extractedThemes.push("Payment Issues");
-    }
-    if (contentText.includes("support") || contentText.includes("help") || contentText.includes("agent") || contentText.includes("resolved")) {
-      extractedThemes.push("Customer Support");
-    }
-    if (contentText.includes("ui") || contentText.includes("ux") || contentText.includes("dashboard") || contentText.includes("design") || contentText.includes("analytics")) {
-      extractedThemes.push("Product Quality");
-    }
-
-    if (extractedThemes.length === 0) {
-      extractedThemes.push("Product Quality");
-    }
+    const quickResult = quickClassifySentiment(feedback.content);
+    sentiment = quickResult.sentiment;
+    sentimentScore = quickResult.sentimentScore;
+    extractedThemes = [quickResult.themeName];
   }
 
   // 3. Persist Classification to Database & In-Memory Store
@@ -169,7 +115,7 @@ Schema:
   return {
     feedback: updatedFeedback,
     themes: createdThemes,
-    aiEngine: classifiedByAI ? "Google Gemini AI" : "High-Accuracy Sentiment Engine",
+    aiEngine: classifiedByAI ? "Google Gemini AI" : "High-Accuracy Negation NLP Engine",
     classifiedByAI,
     embedded: true,
   };
