@@ -5,9 +5,9 @@ import bcrypt from "bcryptjs";
 import "dotenv/config";
 
 const connectionString =
-  process.env.DATABASE_URL ||
   process.env.DIRECT_URL ||
-  "postgresql://postgres.vqwnrsxtmifkykdxegyu:Loop%401615%401@aws-1-ap-south-1.pooler.supabase.com:6543/postgres?pgbouncer=true";
+  process.env.DATABASE_URL ||
+  "postgresql://postgres.vqwnrsxtmifkykdxegyu:Loop%401615%401@aws-1-ap-south-1.pooler.supabase.com:5432/postgres";
 
 const pool = new Pool({ connectionString, ssl: { rejectUnauthorized: false } });
 const adapter = new PrismaPg(pool);
