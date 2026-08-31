@@ -7,8 +7,8 @@ export interface FeedbackItem {
   id: string;
   content: string;
   channel: string;
-  sentiment: "POSITIVE" | "NEGATIVE" | "NEUTRAL" | null;
-  sentimentScore: number | null;
+  sentiment: "POSITIVE" | "NEGATIVE" | "NEUTRAL";
+  sentimentScore: number;
   status: "NEW" | "REVIEWED" | "ACTIONED";
   customerName: string | null;
   workspaceId: string;
@@ -21,6 +21,65 @@ export interface FeedbackItem {
       name: string;
     };
   }>;
+}
+
+export function quickClassifySentiment(content: string): {
+  sentiment: "POSITIVE" | "NEGATIVE" | "NEUTRAL";
+  sentimentScore: number;
+  themeName: string;
+} {
+  const text = (content || "").toLowerCase();
+
+  const posKeywords = [
+    "amazing", "awesome", "great", "love", "fast", "resolved", "excellent", "superb",
+    "helpful", "fantastic", "wonderful", "best", "good", "improvement", "improvements",
+    "saves hours", "easy", "perfect", "smooth", "happy", "delighted", "impressed",
+    "top-notch", "outstanding", "brilliant", "valuable", "efficient", "seamless",
+    "favorite", "clean", "intuitive", "speed", "quick", "thanks", "thank you", "nice",
+    "useful", "like", "liked", "satisfied", "enjoy", "enjoyed", "analyzing"
+  ];
+
+  const negKeywords = [
+    "slow", "issue", "issues", "error", "errors", "lag", "lagging", "fail", "failed",
+    "broken", "bad", "terrible", "horrible", "crash", "crashed", "bug", "bugs",
+    "frustrated", "disappointed", "delayed", "delay", "poor", "useless", "stuck",
+    "waste", "refund", "annoying", "expensive", "complicated", "difficult", "worst",
+    "hate", "problem", "problems", "unable", "cannot", "can't", "freeze", "freezing",
+    "dislike", "disliked", "awful"
+  ];
+
+  let posCount = 0;
+  let negCount = 0;
+
+  for (const kw of posKeywords) {
+    if (text.includes(kw)) posCount++;
+  }
+
+  for (const kw of negKeywords) {
+    if (text.includes(kw)) negCount++;
+  }
+
+  let sentiment: "POSITIVE" | "NEGATIVE" | "NEUTRAL" = "NEUTRAL";
+  let sentimentScore = 0.0;
+
+  if (posCount > negCount) {
+    sentiment = "POSITIVE";
+    sentimentScore = Math.min(0.95, 0.65 + posCount * 0.1);
+  } else if (negCount > posCount) {
+    sentiment = "NEGATIVE";
+    sentimentScore = Math.max(-0.95, -0.65 - negCount * 0.1);
+  }
+
+  let themeName = "Product Quality";
+  if (text.includes("speed") || text.includes("slow") || text.includes("fast") || text.includes("lag") || text.includes("load")) {
+    themeName = "Application Speed";
+  } else if (text.includes("payment") || text.includes("card") || text.includes("checkout") || text.includes("cost") || text.includes("price")) {
+    themeName = "Payment Issues";
+  } else if (text.includes("support") || text.includes("help") || text.includes("agent") || text.includes("ticket")) {
+    themeName = "Customer Support";
+  }
+
+  return { sentiment, sentimentScore, themeName };
 }
 
 const inMemoryFeedbacks: FeedbackItem[] = [
@@ -40,10 +99,10 @@ const inMemoryFeedbacks: FeedbackItem[] = [
   },
   {
     id: "fb-seed-002",
-    content: "Payment checkout was smooth, but confirmation email was delayed by a few minutes.",
+    content: "Payment checkout failed with error 500 when using Visa card.",
     channel: "Support Ticket",
-    sentiment: "NEUTRAL",
-    sentimentScore: 0.1,
+    sentiment: "NEGATIVE",
+    sentimentScore: -0.85,
     status: "NEW",
     customerName: "David Miller",
     workspaceId: "ws-demo-001",
@@ -92,19 +151,23 @@ export const feedbackStore = {
     sentiment?: "POSITIVE" | "NEGATIVE" | "NEUTRAL";
     sentimentScore?: number;
   }): Promise<FeedbackItem> {
+    const classified = quickClassifySentiment(item.content);
+    const sentiment = item.sentiment || classified.sentiment;
+    const sentimentScore = typeof item.sentimentScore === "number" ? item.sentimentScore : classified.sentimentScore;
+
     const newItem: FeedbackItem = {
       id: `fb-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
       content: item.content,
       channel: item.channel || "Web Form",
       customerName: item.customerName || "Anonymous Customer",
-      sentiment: item.sentiment || null,
-      sentimentScore: typeof item.sentimentScore === "number" ? item.sentimentScore : null,
-      status: item.status || "NEW",
+      sentiment,
+      sentimentScore,
+      status: item.status || "REVIEWED",
       workspaceId: item.workspaceId || "ws-demo-001",
       isManuallyReviewed: false,
       createdAt: new Date(),
       updatedAt: new Date(),
-      themes: [],
+      themes: [{ theme: { id: `th-${classified.themeName.toLowerCase().replace(/\s+/g, "-")}`, name: classified.themeName } }],
     };
     inMemoryFeedbacks.unshift(newItem);
     return newItem;
