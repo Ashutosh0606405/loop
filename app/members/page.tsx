@@ -32,13 +32,11 @@ export default function MembersPage() {
       setLoading(true);
       const res = await fetch("/api/members");
       const data = await res.json();
-      if (res.ok) {
-        setMembers(data.members || []);
-      } else {
-        setError(data.error || "Failed to load team members");
+      if (data?.members && Array.isArray(data.members)) {
+        setMembers(data.members);
       }
     } catch (err) {
-      setError("Failed to fetch team members");
+      console.warn("Error loading members:", err);
     } finally {
       setLoading(false);
     }
